@@ -1,0 +1,9 @@
+{
+	"name": "inserter-visualizer",
+	"version": "0.0.1",
+	"title": "Inserter Visualizer",
+	"description": "indicates which lane of a belt an inserter will place onto",
+	"author": "asher_sky",
+	"dependencies": ["base >= 1.1.61"],
+	"factorio_version": "1.1"
+}

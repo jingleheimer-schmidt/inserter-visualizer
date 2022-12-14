@@ -131,7 +131,7 @@ local function draw_drop_position(inserter, player_index)
 	table.insert(global.renderings[player_index].render_ids, render_line)
 end
 
-local function trace_belts_new(data, player_index)
+local function trace_belts(data, player_index)
 	local entity = data.entity
 	local from_type = data.from_type
 	if entity and entity.valid then
@@ -186,170 +186,6 @@ local function trace_belts_new(data, player_index)
 	end
 end
 
-local function trace_belts_staggered(entity, type_to_ignore, player_index, color, final_ug, traced_belts, counter)
-	if not entity.valid then return end
-	if not counter then counter = 0 end
-	if counter > 25 then
-		if not global.belts_to_trace then
-			global.belts_to_trace = {}
-		end
-		global.belts_to_trace[player_index] = {
-			starting_entity = entity,
-			type_to_ignore = type_to_ignore,
-			color = color,
-			final_ug = final_ug,
-			traced_belts = traced_belts,
-		}
-		return
-	end
-	local opposite_type = {
-		inputs = "outputs",
-		outputs = "inputs",
-	}
-	traced_belts =  traced_belts or {}
-	local x = math.floor(entity.position.x)
-	local y = math.floor(entity.position.y)
-	if traced_belts == true then
-		traced_belts = {
-			[x] = {
-				[y] = true
-			}
-		}
-	elseif traced_belts[x] then
-		if traced_belts[x][y] then
-			return
-		end
-	end
-	if entity.type and entity.type == "underground-belt" and entity.neighbours then
-		if global.drop_target_positions and global.drop_target_positions[entity.surface.name] then
-			local positions_on_surface = global.drop_target_positions[entity.surface.name]
-			if positions_on_surface[x] and positions_on_surface[x][y] then
-				for _, inserter in pairs(positions_on_surface[x][y]) do
-					draw_drop_position(inserter, player_index, color)
-				end
-			end
-		end
-		if not final_ug then
-			final_ug = true
-			if not traced_belts[x] then
-				traced_belts[x] = {
-					[y] = true
-				}
-			else
-				traced_belts[x][y] = true
-			end
-			-- trace_belts_staggered(entity.neighbours, type_to_ignore, player_index, color, final_ug, traced_belts, counter + 1)
-			table.insert(global.belts_to_trace[player_index], entity.neighbours)
-		end
-	end
-	if entity.belt_neighbours then
-		for type, neighbors in pairs(entity.belt_neighbours) do
-			-- if type ~= type_to_ignore then
-				for _, neighbor in pairs(neighbors) do
-					if (neighbor.type == "transport-belt") or (neighbor.type == "splitter") or (neighbor.type == "underground-belt") then
-						if global.drop_target_positions and global.drop_target_positions[entity.surface.name] then
-							local positions_on_surface = global.drop_target_positions[entity.surface.name]
-							if positions_on_surface[x] and positions_on_surface[x][y] then
-								for _, inserter in pairs(positions_on_surface[x][y]) do
-									draw_drop_position(inserter, player_index, color)
-								end
-							end
-						end
-						if not traced_belts[x] then
-							traced_belts[x] = {
-								[y] = true
-							}
-						else
-							traced_belts[x][y] = true
-						end
-						-- trace_belts_staggered(neighbor, opposite_type[type], player_index, color, nil, traced_belts, counter + 1)
-						table.insert(global.belts_to_trace[player_index], neighbor)
-					end
-				end
-			-- end
-		end
-	end
-end
-
-local function trace_belts(entity, type_to_ignore, player_index, color, final_ug, traced_belts)
-	if not entity.valid then return end
-	local opposite_type = {
-		inputs = "outputs",
-		outputs = "inputs",
-	}
-	traced_belts =  traced_belts or {}
-	local x = math.floor(entity.position.x)
-	local y = math.floor(entity.position.y)
-	if traced_belts == true then
-		traced_belts = {
-			[x] = {
-				[y] = true
-			}
-		}
-	elseif traced_belts[x] then
-		if traced_belts[x][y] then
-			return
-		end
-	end
-	if entity.type and entity.type == "underground-belt" and entity.neighbours then
-		if global.drop_target_positions and global.drop_target_positions[entity.surface.name] then
-			local positions_on_surface = global.drop_target_positions[entity.surface.name]
-			if positions_on_surface[x] and positions_on_surface[x][y] then
-				for _, inserter in pairs(positions_on_surface[x][y]) do
-					draw_drop_position(inserter, player_index, color)
-				end
-			end
-		end
-		if not final_ug then
-			final_ug = true
-			if not traced_belts[x] then
-				traced_belts[x] = {
-					[y] = true
-				}
-			else
-				traced_belts[x][y] = true
-			end
-			trace_belts(entity.neighbours, type_to_ignore, player_index, color, final_ug, traced_belts)
-		end
-	end
-	if entity.belt_neighbours then
-		for type, neighbors in pairs(entity.belt_neighbours) do
-			-- if type ~= type_to_ignore then
-				for _, neighbor in pairs(neighbors) do
-					if (neighbor.type == "transport-belt") or (neighbor.type == "splitter") or (neighbor.type == "underground-belt") then
-						-- local x = math.floor(entity.position.x)
-						-- local y = math.floor(entity.position.y)
-						if global.drop_target_positions and global.drop_target_positions[entity.surface.name] then
-							local positions_on_surface = global.drop_target_positions[entity.surface.name]
-							if positions_on_surface[x] and positions_on_surface[x][y] then
-								for _, inserter in pairs(positions_on_surface[x][y]) do
-									draw_drop_position(inserter, player_index, color)
-								end
-							end
-						end
-						if not traced_belts[x] then
-							traced_belts[x] = {
-								[y] = true
-							}
-						else
-							traced_belts[x][y] = true
-						end
-						-- rendering.draw_circle({
-						--     color = color,
-						--     radius = 0.1,
-						--     filled = true,
-						--     target = neighbor,
-						--     surface = neighbor.surface,
-						--     time_to_live = 60 * 0.25, -- 1 seconds
-						-- })
-						trace_belts(neighbor, opposite_type[type], player_index, color, nil, traced_belts)
-					end
-				end
-			-- end
-		end
-	end
-end
-
 script.on_event(defines.events.on_selected_entity_changed, function(event)
 	local player_index = event.player_index
 	if global.highlight_inserters and global.highlight_inserters[player_index] then return end
@@ -398,10 +234,8 @@ local function entity_built(event)
 		if not x_axis[y] then x_axis[y] = {} end
 		local drop_target_position = x_axis[y]
 		table.insert(drop_target_position, entity)
-		-- add the inserter to the global list indexed by unit_number
+		-- add the inserter to the global list
 		if not global.all_inserters then global.all_inserters = {} end
-		-- table.insert(global.all_inserters, entity.unit_number, entity)
-		-- table.insert(global.all_inserters, {unit_number = entity.unit_number, entity = entity})
 		table.insert(global.all_inserters, entity)
 	end
 end
@@ -429,8 +263,6 @@ local function toggle_global_inserter_visualizer(event)
 		global.highlight_inserters[player_index] = true
 		if not global.inserter_queue then global.inserter_queue = {} end
 		global.inserter_queue[player_index] = true
-		-- global.inserter_queue[player_index] = util.table.deepcopy(global.drop_target_positions)
-		-- global.inserter_queue[player_index] = global.drop_target_positions
 	else
 		global.highlight_inserters[player_index] = false
 		global.inserter_queue[player_index] = nil
@@ -454,8 +286,6 @@ local function toggle_global_inserter_visualizer(event)
 		global.highlighted_inserters = nil
 	end
 	global.from_key = nil
-	
-	-- table.sort(global.all_inserters, function(a,b) return a.unit_number > b.unit_number end)
 end
 
 script.on_init(function() update_drop_locations() end)
@@ -465,27 +295,6 @@ script.on_event(defines.events.on_robot_built_entity, function(event) entity_bui
 script.on_event(defines.events.script_raised_built, function(event) entity_built(event) end)
 script.on_event("toggle-global-inserter-visualizer", function(event) toggle_global_inserter_visualizer(event) end)
 
--- script.on_event(defines.events.on_tick, function(event)
---     local renderings = global.renderings
---     if renderings then
---         for player_index, data in pairs(renderings) do
---             if not data.player or not data.player.valid then
---                 renderings[player_index] = nil
---             else
---                 for key, id in pairs(data.render_ids) do
---                     if not rendering.is_valid(id) then
---                         renderings[player_index][key] = nil
---                     else
---                         local color = data.player.color
---                         color.a = 1
---                         rendering.set_color(id, color)
---                     end
---                 end
---             end
---         end
---     end
--- end)
-
 script.on_event(defines.events.on_tick, function()
 	local belt_queue = global.trace_queue
 	if belt_queue then
@@ -493,7 +302,7 @@ script.on_event(defines.events.on_tick, function()
 			local counter = 0
 			for id, data in pairs(belts) do
 				if counter < 5 then
-					trace_belts_new(data, player_index)
+					trace_belts(data, player_index)
 					belts[id] = nil
 					counter = counter + 1
 				end
@@ -508,7 +317,6 @@ script.on_event(defines.events.on_tick, function()
 				global.from_key, results, reached_end = table.for_n_of(global.all_inserters, global.from_key, 33, function(inserter)
 					if inserter.valid then
 						draw_drop_position(inserter, player_index)
-						-- game.print(inserter.unit_number)
 					end
 				end)
 				if reached_end then
@@ -517,33 +325,4 @@ script.on_event(defines.events.on_tick, function()
 			end
 		end
 	end
-	-- if inserter_queue then
-	-- 	for player_index, data in pairs(inserter_queue) do
-	-- 		local counter = 0
-	-- 		for surface_name, x_positions in pairs(data) do
-	-- 			if counter > 10 then return end
-	-- 			local next = next
-	-- 			for x, y_positions in pairs(x_positions) do
-	-- 				if counter > 10 then return end
-	-- 				for y, inserters in pairs(y_positions) do
-	-- 					if counter > 10 then return end
-	-- 					for id, inserter in pairs(inserters) do
-	-- 						draw_drop_position(inserter, player_index)
-	-- 						data[surface_name][x][y][id] = nil
-	-- 						if next(inserters) == nil then
-	-- 							data[surface_name][x][y] = nil
-	-- 						end
-	-- 						counter = counter + 1
-	-- 					end
-	-- 					if next(y_positions) == nil then
-	-- 						data[surface_name][x] = nil
-	-- 					end
-	-- 				end
-	-- 				if next(x_positions) == nil then
-	-- 					data[surface_name] = nil
-	-- 				end
-	-- 			end
-	-- 		end
-	-- 	end
-	-- end
 end)

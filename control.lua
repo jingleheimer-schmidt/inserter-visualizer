@@ -35,6 +35,7 @@ local dirs_lookup = {
 }
 local active_mods = script.active_mods
 
+-- thank you _codegreen for concocting this magic function
 local function flip_adjustment(inserter)
 	local entity = inserter.drop_target
 	if not entity then return end
@@ -98,7 +99,7 @@ local function draw_drop_position(inserter, player_index)
 			target = adjusted_position,
 			surface = surface,
 			-- time_to_live = 60 * 1, -- 1 seconds
-			-- players = {player_index},
+			players = {player_index},
 		}
 	)
 	local render_line = rendering.draw_line(
@@ -111,7 +112,7 @@ local function draw_drop_position(inserter, player_index)
 			to = adjusted_position,
 			surface = surface,
 			-- time_to_live = 60 * 1, -- 1 seconds
-			-- players = {player_index},
+			players = {player_index},
 		}
 	)
 	if not global.renderings then
@@ -236,7 +237,9 @@ local function entity_built(event)
 		table.insert(drop_target_position, entity)
 		-- add the inserter to the global list
 		if not global.all_inserters then global.all_inserters = {} end
-		table.insert(global.all_inserters, entity)
+		table.insert(global.all_inserters, 1, entity)
+		-- table.insert(global.all_inserters, entity)
+		-- global.sorting_status = true
 	end
 end
 
@@ -252,8 +255,9 @@ local function update_drop_locations()
 			end
 		end
 	end
-	-- table.sort(global.all_inserters, function(a,b) return a.unit_number > b.unit_number end)
-	table.sort(global.all_inserters, function(a,b) return a.unit_number < b.unit_number end)
+	-- for table.sort, return true to sort a before b, or return false to sort b before a
+	table.sort(global.all_inserters, function(a,b) return a.unit_number > b.unit_number end)
+	-- table.sort(global.all_inserters, function(a,b) return a.unit_number < b.unit_number end)
 end
 
 local function toggle_global_inserter_visualizer(event)
@@ -268,12 +272,9 @@ local function toggle_global_inserter_visualizer(event)
 		global.inserter_queue[player_index] = nil
 	end
 	-- clear any renderings for the player
+	if not global.destroy_renderings then global.destroy_renderings = {} end
 	if global.renderings and global.renderings[player_index] then
-		local data = global.renderings[player_index]
-		for key, id in pairs(data.render_ids) do
-			rendering.destroy(id)
-		end
-		data.render_ids = {}
+		global.destroy_renderings[player_index] = true
 	end
 	-- clear any queued belts from the tracer
 	if global.trace_queue and global.trace_queue[player_index] then
@@ -295,34 +296,62 @@ script.on_event(defines.events.on_robot_built_entity, function(event) entity_bui
 script.on_event(defines.events.script_raised_built, function(event) entity_built(event) end)
 script.on_event("toggle-global-inserter-visualizer", function(event) toggle_global_inserter_visualizer(event) end)
 
+-- a "factory function" so that the player_index upval can be passed through during for_n_of.
+-- the `callback` in for_n_of receives two inputs, the value and key of the table that is being processed,
+-- so if we call this factory function `factory(uppval_to_pass)` it will return the inner function + the captured upvals,
+-- which will be used as the `callback` in for_n_of.
+-- Thank you so much justarandomgeek and jansharp for explaining this to me :)
+local function draw_drop_positions_partial(player_index)
+  return function(inserter)
+		if inserter.valid then
+			draw_drop_position(inserter, player_index)
+		else
+			return nil, true -- return the "deletion flag" to tell for_n_of to remove it from global.all_inserters
+		end
+  end
+end
+
+local function destroy_renderings_partial(render_id)
+	rendering.destroy(render_id)
+	return nil, true -- return the "deletion flag" to tell for_n_of to remove it from global.renderings[player_index]
+end
+
 script.on_event(defines.events.on_tick, function()
+	::belt_queue::
 	local belt_queue = global.trace_queue
-	if belt_queue then
-		for player_index, belts in pairs(belt_queue) do
-			local counter = 0
-			for id, data in pairs(belts) do
-				if counter < 5 then
-					trace_belts(data, player_index)
-					belts[id] = nil
-					counter = counter + 1
-				end
-			end
+	if not belt_queue then goto inserter_queue end
+	for player_index, belts in pairs(belt_queue) do
+		local counter = 0
+		for id, data in pairs(belts) do
+			if counter > 5 then break end
+			trace_belts(data, player_index)
+			belts[id] = nil
+			counter = counter + 1
 		end
 	end
+	::inserter_queue::
 	local inserter_queue = global.inserter_queue
-	if inserter_queue then
-		for player_index, bool in pairs(inserter_queue) do
-			if bool then
-				local results, reached_end = nil, nil
-				global.from_key, results, reached_end = table.for_n_of(global.all_inserters, global.from_key, 33, function(inserter)
-					if inserter.valid then
-						draw_drop_position(inserter, player_index)
-					end
-				end)
-				if reached_end then
-					global.inserter_queue[player_index] = false
-				end
-			end
+	if not inserter_queue then goto render_destruction end
+	for player_index, bool in pairs(inserter_queue) do
+		if not bool then break end
+		if global.destroy_renderings and global.destroy_renderings[player_index] then break end-- don't start rendering until all the current ones are destroyed
+		local results, reached_end = nil, nil
+		global.from_key, results, reached_end = table.for_n_of(global.all_inserters, global.from_key, 50, draw_drop_positions_partial(player_index))
+		if reached_end then
+			global.inserter_queue[player_index] = false
+		end
+	end
+	::render_destruction::
+	local destroy_renderings = global.destroy_renderings
+	if not destroy_renderings then return end
+	for player_index, bool in pairs(destroy_renderings) do
+		if not bool then break end
+		local results, reached_end = nil, nil
+		if not global.player_from_key then global.player_from_key = {} end
+		global.player_from_key[player_index], results, reached_end = table.for_n_of(global.renderings[player_index].render_ids, global.player_from_key[player_index], 500, destroy_renderings_partial)
+		if reached_end then
+			global.renderings[player_index] = nil
+			destroy_renderings[player_index] = false
 		end
 	end
 end)

@@ -1,10 +1,44 @@
 local color = {r = 255, g = 255, b = 0}
-require "util"
+-- require "util"
+local table = require("__flib__.table")
+local floor = math.floor
+local belt_types = {
+	["transport-belt"] = true,
+	["underground-belt"] = true,
+	["splitter"] = true
+}
+local dirs = {
+	south = 0,
+	south_west = 0.125,
+	west = 0.25,
+	north_west = 0.375,
+	north = 0.5,
+	north_east = 0.625,
+	east = 0.75,
+	south_east = 0.875,
+}
+local diagonal_correction = {
+	south_west = dirs["west"],
+	north_west = dirs["north"],
+	south_east = dirs["south"],
+	north_east = dirs["east"],
+}
+local dirs_lookup = {
+	[0] = "south",
+	[0.125] = "south_west",
+	[0.25] = "west",
+	[0.375] = "north_west",
+	[0.5] = "north",
+	[0.625] = "north_east",
+	[0.75] = "east",
+	[0.875] = "south_east",
+}
+local active_mods = script.active_mods
 
 local function flip_adjustment(inserter)
 	local entity = inserter.drop_target
-	local type = entity.type
-	if not (type == "transport-belt" or type == "underground-belt" or type == "splitter") then return end
+	if not entity then return end
+	if not belt_types[entity.type] then return end
 	local belt_direction = entity.direction
 	local inputs = entity.belt_neighbours.inputs
 	local offset = 0
@@ -18,67 +52,40 @@ local function draw_drop_position(inserter, player_index)
 	if not inserter or not inserter.valid then return end
 	color.a = 1
 	local adjusted_position = inserter.drop_position
+	local drop_target = inserter.drop_target
 	local orientation = inserter.orientation
-	-- local belt_orientation = entity.orientation
-	-- if orientation then
-	--     if orientation == 0.5 then -- placing north
-	--         adjusted_position.x = adjusted_position.x + 1/4
-	--         if belt_orientation == 0 then -- belt is going north
-	--             if entity.belt_neighbours and entity.belt_neighbours.inputs then
-	--                 if entity.belt_neighbours.inputs[1] and not entity.belt_neighbours.inputs[2] and entity.belt_neighbours.inputs[1].orientation == 0.25 then -- input belt is going east
-	--                     adjusted_position.x = adjusted_position.x - 1/2
-	--                 end
-	--             end
-	--         elseif belt_orientation == 0.25 then -- belt is going east
-	--             -- no further adjustment needed
-	--         elseif belt_orientation == 0.5 then -- belt is going south
-	--             adjusted_position.x = adjusted_position.x - 1/2
-	--         elseif belt_orientation == 0.75 then -- belt is going west
-	--             if entity.belt_neighbours and entity.belt_neighbours.inputs then
-	--                 if entity.belt_neighbours.inputs[1] and not entity.belt_neighbours.inputs[2] and entity.belt_neighbours.inputs[1].orientation == 0.5 then -- input belt is going south
-	--                     adjusted_position.x = adjusted_position.x - 1/2
-	--                 end
-	--             end
-	--         end
-	--     elseif orientation == 0.75 then -- placing east
-	--         adjusted_position.y = adjusted_position.y + 1/4
-	--         if belt_orientation == 0.25 then -- belt is going east
-	--             if entity.belt_neighbours and entity.belt_neighbours.inputs then
-	--                 if entity.belt_neighbours.inputs[1] and not entity.belt_neighbours.inputs[2] and entity.belt_neighbours.inputs[1].orientation == 0.5 then -- input belt is going south
-	--                     adjusted_position.y = adjusted_position.y - 1/2
-	--                 end
-	--             end
-	--         end
-	--     elseif orientation == 0 then -- placing south 
-	--         adjusted_position.x = adjusted_position.x - 1/4
-	--     elseif orientation == 0.25 then -- placing west
-	--         adjusted_position.y = adjusted_position.y - 1/4
-	--     end
+	local drop_target_offset = 1/4
+	-- if active_mods["diagonal-inserters"] then
+	-- 	orientation = diagonal_correction[dirs_lookup[orientation]]
 	-- end
-	if orientation then
-		if orientation == 0.5 then -- placing north
+	if orientation and drop_target and drop_target.type and belt_types[drop_target.type] then
+		if orientation >= dirs["north_west"] and orientation < dirs["north_east"] then
+		-- if orientation == 0.5 then -- placing north
 			if flip_adjustment(inserter) then
-				adjusted_position.x = adjusted_position.x - 1/4
+				adjusted_position.x = adjusted_position.x - drop_target_offset
 			else
-				adjusted_position.x = adjusted_position.x + 1/4
+				adjusted_position.x = adjusted_position.x + drop_target_offset
 			end
-		elseif orientation == 0.75 then -- placing east
+		elseif orientation >= dirs["north_east"] and orientation < dirs["south_east"] then
+		-- elseif orientation == 0.75 then -- placing east
 			if flip_adjustment(inserter) then
-				adjusted_position.y = adjusted_position.y - 1/4
+				adjusted_position.y = adjusted_position.y - drop_target_offset
 			else
-				adjusted_position.y = adjusted_position.y + 1/4
+				adjusted_position.y = adjusted_position.y + drop_target_offset
 			end
-		elseif orientation == 0 then -- placing south 
+		elseif orientation >= dirs["south_east"] or orientation < dirs["south_west"] then
+		-- elseif orientation == 0 then -- placing south 
 			if flip_adjustment(inserter) then
-				adjusted_position.x = adjusted_position.x + 1/4
+				adjusted_position.x = adjusted_position.x + drop_target_offset
 			else
-				adjusted_position.x = adjusted_position.x - 1/4
+				adjusted_position.x = adjusted_position.x - drop_target_offset
 			end
-		elseif orientation == 0.25 then -- placing west
+		elseif orientation >= dirs["south_west"] and orientation < dirs["north_west"] then
+		-- elseif orientation == 0.25 then -- placing west
 			if flip_adjustment(inserter) then
-				adjusted_position.y = adjusted_position.y + 1/4
+				adjusted_position.y = adjusted_position.y + drop_target_offset
 			else
-				adjusted_position.y = adjusted_position.y - 1/4
+				adjusted_position.y = adjusted_position.y - drop_target_offset
 			end
 		end
 	end
@@ -127,7 +134,6 @@ end
 local function trace_belts_new(data, player_index)
 	local entity = data.entity
 	local from_type = data.from_type
-	local floor = math.floor
 	if entity and entity.valid then
 		local position = entity.position
 		local x = floor(position.x)
@@ -171,8 +177,8 @@ local function trace_belts_new(data, player_index)
 		-- add the other side of an underground to the queue
 		if entity.type and entity.type == "underground-belt" and entity.neighbours then
 			local neighbour_position = entity.neighbours.position
-			neighbour_x = floor(neighbour_position.x)
-			neighbour_y = floor(neighbour_position.y)
+			local neighbour_x = floor(neighbour_position.x)
+			local neighbour_y = floor(neighbour_position.y)
 			if not (traced_belts and traced_belts[neighbour_x] and traced_belts[neighbour_x][neighbour_y]) then
 				table.insert(global.trace_queue[player_index], {entity = entity.neighbours})
 			end
@@ -346,6 +352,7 @@ end
 
 script.on_event(defines.events.on_selected_entity_changed, function(event)
 	local player_index = event.player_index
+	if global.highlight_inserters and global.highlight_inserters[player_index] then return end
 	local player = game.get_player(player_index)
 	local entity = player.selected
 	-- clear any renderings for the player
@@ -368,19 +375,6 @@ script.on_event(defines.events.on_selected_entity_changed, function(event)
 		if entity.type == "inserter" then
 			draw_drop_position(entity, event.player_index)
 		elseif (entity.type == "transport-belt") or (entity.type == "underground-belt") or  (entity.type == "splitter") then
-			-- local x = math.floor(entity.position.x)
-			-- local y = math.floor(entity.position.y)
-			-- if global.drop_target_positions and global.drop_target_positions[entity.surface.name] then
-			--     local positions_on_surface = global.drop_target_positions[entity.surface.name]
-			--     if positions_on_surface[x] and positions_on_surface[x][y] then
-			--         for _, inserter in pairs(positions_on_surface[x][y]) do
-			--             draw_drop_position(inserter, event.player_index)
-			--         end
-			--     end
-			-- end
-			-- local traced_belts = true
-			-- trace_belts(entity, nil, event.player_index, player.color, nil, traced_belts)
-			-- trace_belts_staggered(entity, nil, event.player_index, player.color, nil, traced_belts)
 			if not global.trace_queue then global.trace_queue = {} end
 			if not global.trace_queue[player_index] then global.trace_queue[player_index] = {} end
 			table.insert(global.trace_queue[player_index], {entity = entity})
@@ -391,11 +385,12 @@ end)
 local function entity_built(event)
 	local entity = event.entity or event.created_entity
 	if entity.type == "inserter" then
+		-- add the inserter to the global list indexed by xy coordinates
 		if not global.drop_target_positions then global.drop_target_positions = {} end
 		local drop_target_positions = global.drop_target_positions
 		local surface_name = entity.surface.name
-		local x = math.floor(entity.drop_position.x)
-		local y = math.floor(entity.drop_position.y)
+		local x = floor(entity.drop_position.x)
+		local y = floor(entity.drop_position.y)
 		if not drop_target_positions[surface_name] then drop_target_positions[surface_name] = {} end
 		local positions_on_surface = drop_target_positions[surface_name]
 		if not positions_on_surface[x] then positions_on_surface[x] = {} end
@@ -403,6 +398,11 @@ local function entity_built(event)
 		if not x_axis[y] then x_axis[y] = {} end
 		local drop_target_position = x_axis[y]
 		table.insert(drop_target_position, entity)
+		-- add the inserter to the global list indexed by unit_number
+		if not global.all_inserters then global.all_inserters = {} end
+		-- table.insert(global.all_inserters, entity.unit_number, entity)
+		-- table.insert(global.all_inserters, {unit_number = entity.unit_number, entity = entity})
+		table.insert(global.all_inserters, entity)
 	end
 end
 
@@ -418,6 +418,8 @@ local function update_drop_locations()
 			end
 		end
 	end
+	-- table.sort(global.all_inserters, function(a,b) return a.unit_number > b.unit_number end)
+	table.sort(global.all_inserters, function(a,b) return a.unit_number < b.unit_number end)
 end
 
 local function toggle_global_inserter_visualizer(event)
@@ -426,7 +428,9 @@ local function toggle_global_inserter_visualizer(event)
 	if not global.highlight_inserters[player_index] then
 		global.highlight_inserters[player_index] = true
 		if not global.inserter_queue then global.inserter_queue = {} end
-		global.inserter_queue[player_index] = util.table.deepcopy(global.drop_target_positions)
+		global.inserter_queue[player_index] = true
+		-- global.inserter_queue[player_index] = util.table.deepcopy(global.drop_target_positions)
+		-- global.inserter_queue[player_index] = global.drop_target_positions
 	else
 		global.highlight_inserters[player_index] = false
 		global.inserter_queue[player_index] = nil
@@ -446,6 +450,12 @@ local function toggle_global_inserter_visualizer(event)
 	if global.traced_belts and global.traced_belts[player_index] then
 		global.traced_belts[player_index] = nil
 	end
+	if global.highlighted_inserters then
+		global.highlighted_inserters = nil
+	end
+	global.from_key = nil
+	
+	-- table.sort(global.all_inserters, function(a,b) return a.unit_number > b.unit_number end)
 end
 
 script.on_init(function() update_drop_locations() end)
@@ -492,21 +502,48 @@ script.on_event(defines.events.on_tick, function()
 	end
 	local inserter_queue = global.inserter_queue
 	if inserter_queue then
-		for player_index, data in pairs(inserter_queue) do
-			local counter = 0
-			for surface_name, x_positions in pairs(data) do
-				if counter < 100 then
-					-- if not next(x_position) then data[surface_name] = nil break end
-					for x_position, y_position in pairs(x_positions) do
-						for _, inserter in pairs(y_position) do
-							if not inserter then return end
-							draw_drop_position(inserter, player_index)
-							x_position[y_position] = nil
-							counter = counter + 1
-						end
+		for player_index, bool in pairs(inserter_queue) do
+			if bool then
+				local results, reached_end = nil, nil
+				global.from_key, results, reached_end = table.for_n_of(global.all_inserters, global.from_key, 33, function(inserter)
+					if inserter.valid then
+						draw_drop_position(inserter, player_index)
+						-- game.print(inserter.unit_number)
 					end
+				end)
+				if reached_end then
+					global.inserter_queue[player_index] = false
 				end
 			end
 		end
 	end
+	-- if inserter_queue then
+	-- 	for player_index, data in pairs(inserter_queue) do
+	-- 		local counter = 0
+	-- 		for surface_name, x_positions in pairs(data) do
+	-- 			if counter > 10 then return end
+	-- 			local next = next
+	-- 			for x, y_positions in pairs(x_positions) do
+	-- 				if counter > 10 then return end
+	-- 				for y, inserters in pairs(y_positions) do
+	-- 					if counter > 10 then return end
+	-- 					for id, inserter in pairs(inserters) do
+	-- 						draw_drop_position(inserter, player_index)
+	-- 						data[surface_name][x][y][id] = nil
+	-- 						if next(inserters) == nil then
+	-- 							data[surface_name][x][y] = nil
+	-- 						end
+	-- 						counter = counter + 1
+	-- 					end
+	-- 					if next(y_positions) == nil then
+	-- 						data[surface_name][x] = nil
+	-- 					end
+	-- 				end
+	-- 				if next(x_positions) == nil then
+	-- 					data[surface_name] = nil
+	-- 				end
+	-- 			end
+	-- 		end
+	-- 	end
+	-- end
 end)

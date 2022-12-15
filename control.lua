@@ -132,6 +132,26 @@ local function draw_drop_position(inserter, player_index)
 	table.insert(global.renderings[player_index].render_ids, render_line)
 end
 
+local function get_positions_in_bounding_box(bounding_box)
+  local positions = {}
+  for x = floor(bounding_box.left_top.x), floor(bounding_box.right_bottom.x) do
+    for y = floor(bounding_box.left_top.y), floor(bounding_box.right_bottom.y) do
+      table.insert(positions, {x = x, y = y})
+    end
+  end
+  return positions
+end
+
+local function draw_drop_positions_by_xy(x, y, surface_name, player_index)
+	-- draw any inserter drop positions
+	if not (global.drop_target_positions and global.drop_target_positions[surface_name]) then return end
+	local positions_on_surface = global.drop_target_positions[surface_name]
+	if not (positions_on_surface[x] and positions_on_surface[x][y]) then return end
+	for _, inserter in pairs(positions_on_surface[x][y]) do
+		draw_drop_position(inserter, player_index)
+	end
+end
+
 local function trace_belts(data, player_index)
 	local entity = data.entity
 	local from_type = data.from_type
@@ -140,14 +160,15 @@ local function trace_belts(data, player_index)
 		local x = floor(position.x)
 		local y = floor(position.y)
 		local surface_name = entity.surface.name
-		-- draw any inserter drop positions 
-		if global.drop_target_positions and global.drop_target_positions[surface_name] then
-			local positions_on_surface = global.drop_target_positions[surface_name]
-			if positions_on_surface[x] and positions_on_surface[x][y] then
-				for _, inserter in pairs(positions_on_surface[x][y]) do
-					draw_drop_position(inserter, player_index)
-				end
+		local type = entity.type
+		-- draw any inserter drop positions
+		if type == "splitter" then
+			local splitter_positions = get_positions_in_bounding_box(entity.bounding_box)
+			for _, splitter_position in pairs(splitter_positions) do
+				draw_drop_positions_by_xy(splitter_position.x, splitter_position.y, surface_name, player_index)
 			end
+		else
+			draw_drop_positions_by_xy(x, y, surface_name, player_index)
 		end
 		-- document that we already traced this belt
 		if not global.traced_belts then global.traced_belts = {} end
@@ -162,21 +183,21 @@ local function trace_belts(data, player_index)
 			outputs = "inputs",
 		}
 		if belt_neighbours then
-			for type, neighbours in pairs(belt_neighbours) do
-				if type ~= from_type then
-					for _, neighbour in pairs(neighbours) do
-						local neighbour_position = neighbour.position
-						local neighbour_x = floor(neighbour_position.x)
-						local neighbour_y = floor(neighbour_position.y)
-						if not (traced_belts and traced_belts[neighbour_x] and traced_belts[neighbour_x][neighbour_y]) then
-							table.insert(global.trace_queue[player_index], {entity = neighbour, from_type = opposite_type[type]})
-						end
-					end
+			for neighbor_type, neighbours in pairs(belt_neighbours) do
+				if neighbor_type == from_type then break end
+				for _, neighbour in pairs(neighbours) do
+					local neighbour_position = neighbour.position
+					local neighbour_x = floor(neighbour_position.x)
+					local neighbour_y = floor(neighbour_position.y)
+					if (traced_belts and traced_belts[neighbour_x] and traced_belts[neighbour_x][neighbour_y]) then break end
+					-- local max_key = #global.trace_queue[player_index]
+					-- if global.trace_queue[player_index][max_key] and global.trace_queue[player_index][max_key].entity and global.trace_queue[player_index][max_key].entity.unit_number == neighbour.unit_number then break end
+					table.insert(global.trace_queue[player_index], {entity = neighbour, from_type = opposite_type[neighbor_type]})
 				end
 			end
 		end
 		-- add the other side of an underground to the queue
-		if entity.type and entity.type == "underground-belt" and entity.neighbours then
+		if type == "underground-belt" and entity.neighbours then
 			local neighbour_position = entity.neighbours.position
 			local neighbour_x = floor(neighbour_position.x)
 			local neighbour_y = floor(neighbour_position.y)
@@ -188,6 +209,23 @@ local function trace_belts(data, player_index)
 end
 
 script.on_event(defines.events.on_selected_entity_changed, function(event)
+
+	-- testing area
+	local entity1 = game.get_player(event.player_index).selected
+	if entity1 then
+		rendering.draw_circle(
+			{
+				color = color,
+				radius = 0.1,
+				filled = true,
+				target = entity1.position,
+				surface = game.get_player(event.player_index).surface.name,
+				time_to_live = 60 * 5,
+			}
+		)
+	end
+	-- end testing area
+
 	local player_index = event.player_index
 	if global.highlight_inserters and global.highlight_inserters[player_index] then return end
 	local player = game.get_player(player_index)
@@ -209,11 +247,11 @@ script.on_event(defines.events.on_selected_entity_changed, function(event)
 	end
 	-- draw highlight if entity is an inserter, or add it to the trace queue if it's a belt
 	if entity and entity.type then
+		if not global.trace_queue then global.trace_queue = {} end
+		if not global.trace_queue[player_index] then global.trace_queue[player_index] = {} end
 		if entity.type == "inserter" then
 			draw_drop_position(entity, event.player_index)
 		elseif (entity.type == "transport-belt") or (entity.type == "underground-belt") or  (entity.type == "splitter") then
-			if not global.trace_queue then global.trace_queue = {} end
-			if not global.trace_queue[player_index] then global.trace_queue[player_index] = {} end
 			table.insert(global.trace_queue[player_index], {entity = entity})
 		end
 	end

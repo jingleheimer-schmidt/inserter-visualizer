@@ -185,18 +185,22 @@ local function trace_belts(data, player_index)
 	-- add any connected belts to the queue
 	if not belt_neighbours then goto underground_section end
 	for neighbor_type, neighbours in pairs(belt_neighbours) do
-		if neighbor_type == from_type then break end
-		for _, neighbour in pairs(neighbours) do
-			local neighbor_unit_number = neighbour.unit_number
-			if traced_belts and traced_belts[neighbor_unit_number] then break end
-			table.insert(global.trace_queue[player_index], {entity = neighbour, from_type = opposite_type[neighbor_type]})
+		if not (neighbor_type == from_type) then
+			for _, neighbour in pairs(neighbours) do
+				if not neighbour then break end
+				-- if traced_belts and traced_belts[neighbour.unit_number] then break end
+				if not (traced_belts and traced_belts[neighbour.unit_number])then
+				table.insert(global.trace_queue[player_index], {entity = neighbour, from_type = opposite_type[neighbor_type]})
+					-- table.insert(global.trace_queue[player_index], {entity = neighbour})
+				end
+			end
 		end
 	end
-	
+
 	-- add the other side of an underground to the queue
 	::underground_section::
 	if type == "underground-belt" and entity.neighbours then
-		if traced_belts and traced_belts[unit_number] then return end
+		if traced_belts and traced_belts[entity.neighbours.unit_number] then return end
 		table.insert(global.trace_queue[player_index], {entity = entity.neighbours})
 	end
 end
@@ -235,7 +239,7 @@ script.on_event(defines.events.on_selected_entity_changed, function(event)
 	if not global.trace_queue then global.trace_queue = {} end
 	if not global.trace_queue[player_index] then global.trace_queue[player_index] = {} end
 	if type == "inserter" then
-		draw_drop_position(entity, event.player_index)
+		draw_drop_position(entity, player_index)
 	elseif belt_types[type] then
 		table.insert(global.trace_queue[player_index], {entity = entity})
 	end

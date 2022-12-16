@@ -1,4 +1,14 @@
-local color = {r = 255, g = 255, b = 0, a = 1}
+
+-- colors
+local red = {1.0, 0.0, 0.0, 1.0}
+local orange = {1.0, 0.5, 0.0, 1.0}
+local yellow = {1.0, 1.0, 0.0, 1.0}
+local green = {0.0, 1.0, 0.0, 1.0}
+local blue = {0.0, 0.0, 1.0, 1.0}
+local indigo = {0.29, 0.0, 0.51, 1.0}
+local violet = {0.93, 0.51, 0.93, 1.0}
+local color = violet
+
 local table = require("__flib__.table")
 local floor = math.floor
 local belt_types = {
@@ -165,6 +175,7 @@ local function trace_belts(data, player_index)
 	local type = entity.type
 	local unit_number = entity.unit_number
 	local belt_neighbours = entity.belt_neighbours
+	local orientation = entity.orientation
 
 	-- draw any inserter drop positions
 	if type == "splitter" then
@@ -186,7 +197,13 @@ local function trace_belts(data, player_index)
 	local unique_untraced = {}
 	for neighbor_type, neighbours in pairs(belt_neighbours) do
 		for _, neighbour in pairs(neighbours) do
-			if not (neighbor_type == from_type) and not (traced_belts and traced_belts[neighbour.unit_number]) then
+			-- if not (neighbor_type == from_type) and not (traced_belts and traced_belts[neighbour.unit_number]) then
+			-- if not (traced_belts and traced_belts[neighbour.unit_number]) then
+			local same_io_type = neighbor_type == from_type
+			local is_splitter = type == "splitter"
+			local same_orientation = orientation == neighbour.orientation
+			local already_traced = traced_belts and traced_belts[neighbour.unit_number]
+			if (not same_io_type or (not is_splitter and same_orientation)) and not already_traced then
 				unique_untraced[neighbour.unit_number] = {entity = neighbour, type = neighbor_type}
 			end
 		end
@@ -341,9 +358,9 @@ local function destroy_renderings_partial(render_id)
 	return nil, true -- return the "deletion flag" to tell for_n_of to remove it from global.renderings[player_index]
 end
 
-local max_belts_traced_per_tick = 50
-local max_inserters_iterated_per_tick = 50
-local max_renderings_destroyed_per_tick = 500
+local max_belts_traced_per_tick = 25
+local max_inserters_iterated_per_tick = 25
+local max_renderings_destroyed_per_tick = 250
 
 script.on_event(defines.events.on_tick, function()
 	local belt_queue = global.trace_queue

@@ -152,6 +152,12 @@ local function draw_drop_positions_by_xy(x, y, surface_name, player_index)
 	end
 end
 
+local function add_entities_to_trace_queue(traced_belts, belt, player_index, belt_type)
+	if not (traced_belts and traced_belts[belt.unit_number]) then
+		table.insert(global.trace_queue[player_index], {entity = belt, from_type = opposite_type[belt_type]})
+	end
+end
+
 local function trace_belts(data, player_index)
 
 	-- declare some locals
@@ -172,7 +178,7 @@ local function trace_belts(data, player_index)
 		for _, splitter_position in pairs(splitter_positions) do
 			draw_drop_positions_by_xy(splitter_position.x, splitter_position.y, surface_name, player_index)
 		end
-	else
+	elseif type == "transport-belt" or type == "underground-belt" then
 		draw_drop_positions_by_xy(x, y, surface_name, player_index)
 	end
 
@@ -183,22 +189,21 @@ local function trace_belts(data, player_index)
 	if not traced_belts[unit_number] then traced_belts[unit_number] = true end
 
 	-- add any connected belts to the queue
-	if not belt_neighbours then goto underground_section end
 	for neighbor_type, neighbours in pairs(belt_neighbours) do
+		local unique_untraced = {}
 		if not (neighbor_type == from_type) then
 			for _, neighbour in pairs(neighbours) do
-				if not neighbour then break end
-				-- if traced_belts and traced_belts[neighbour.unit_number] then break end
-				if not (traced_belts and traced_belts[neighbour.unit_number])then
-				table.insert(global.trace_queue[player_index], {entity = neighbour, from_type = opposite_type[neighbor_type]})
-					-- table.insert(global.trace_queue[player_index], {entity = neighbour})
+				if not ((traced_belts and traced_belts[neighbour.unit_number]) and unique_untraced[neighbour.unit_number]) then
+					unique_untraced[neighbour.unit_number] = neighbour
 				end
 			end
+		end
+		for _, neighbour in pairs(unique_untraced) do
+			table.insert(global.trace_queue[player_index], {entity = neighbour, from_type = opposite_type[neighbor_type]})
 		end
 	end
 
 	-- add the other side of an underground to the queue
-	::underground_section::
 	if type == "underground-belt" and entity.neighbours then
 		if traced_belts and traced_belts[entity.neighbours.unit_number] then return end
 		table.insert(global.trace_queue[player_index], {entity = entity.neighbours})

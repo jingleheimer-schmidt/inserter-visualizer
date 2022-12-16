@@ -7,6 +7,7 @@ local green = {0.0, 1.0, 0.0, 1.0}
 local blue = {0.0, 0.0, 1.0, 1.0}
 local indigo = {0.29, 0.0, 0.51, 1.0}
 local violet = {0.93, 0.51, 0.93, 1.0}
+---@type Color
 local color = violet
 
 local table = require("__flib__.table")
@@ -49,12 +50,16 @@ local dirs_lookup = {
 local active_mods = script.active_mods
 
 -- thank you _codegreen for concocting this magic function
-local function flip_adjustment(inserter)
-	local entity = inserter.drop_target
-	if not entity then return end
-	if not belt_types[entity.type] then return end
-	local belt_direction = entity.direction
-	local inputs = entity.belt_neighbours.inputs
+---comment
+---@param inserter LuaEntity
+---@param drop_target LuaEntity
+---@return boolean
+local function flip_adjustment(inserter, drop_target)
+	-- local entity = inserter.drop_target
+	-- if not entity then return false end
+	-- if not belt_types[entity.type] then return false end
+	local belt_direction = drop_target.direction
+	local inputs = drop_target.belt_neighbours.inputs
 	local offset = 0
 	if #inputs == 1 and belt_direction ~= inputs[1].direction then
 		offset = (belt_direction - inputs[1].direction) % 8 == 2 and 2 or 4
@@ -62,6 +67,9 @@ local function flip_adjustment(inserter)
 	return belt_direction == (inserter.direction + offset) % 8
 end
 
+---comment
+---@param inserter LuaEntity
+---@param player_index PlayerIdentification
 local function draw_drop_position(inserter, player_index)
 	if not inserter or not inserter.valid then return end
 	local adjusted_position = inserter.drop_position
@@ -74,28 +82,28 @@ local function draw_drop_position(inserter, player_index)
 	if orientation and drop_target and drop_target.type and belt_types[drop_target.type] then
 		if orientation >= dirs["north_west"] and orientation < dirs["north_east"] then
 		-- if orientation == 0.5 then -- placing north
-			if flip_adjustment(inserter) then
+			if flip_adjustment(inserter, drop_target) then
 				adjusted_position.x = adjusted_position.x - drop_target_offset
 			else
 				adjusted_position.x = adjusted_position.x + drop_target_offset
 			end
 		elseif orientation >= dirs["north_east"] and orientation < dirs["south_east"] then
 		-- elseif orientation == 0.75 then -- placing east
-			if flip_adjustment(inserter) then
+			if flip_adjustment(inserter, drop_target) then
 				adjusted_position.y = adjusted_position.y - drop_target_offset
 			else
 				adjusted_position.y = adjusted_position.y + drop_target_offset
 			end
 		elseif orientation >= dirs["south_east"] or orientation < dirs["south_west"] then
 		-- elseif orientation == 0 then -- placing south 
-			if flip_adjustment(inserter) then
+			if flip_adjustment(inserter, drop_target) then
 				adjusted_position.x = adjusted_position.x + drop_target_offset
 			else
 				adjusted_position.x = adjusted_position.x - drop_target_offset
 			end
 		elseif orientation >= dirs["south_west"] and orientation < dirs["north_west"] then
 		-- elseif orientation == 0.25 then -- placing west
-			if flip_adjustment(inserter) then
+			if flip_adjustment(inserter, drop_target) then
 				adjusted_position.y = adjusted_position.y + drop_target_offset
 			else
 				adjusted_position.y = adjusted_position.y - drop_target_offset
@@ -142,16 +150,24 @@ local function draw_drop_position(inserter, player_index)
 	table.insert(global.renderings[player_index].render_ids, render_line)
 end
 
+---comment
+---@param bounding_box BoundingBox
+---@return table
 local function get_positions_in_bounding_box(bounding_box)
-  local positions = {}
-  for x = floor(bounding_box.left_top.x), floor(bounding_box.right_bottom.x) do
-    for y = floor(bounding_box.left_top.y), floor(bounding_box.right_bottom.y) do
-      table.insert(positions, {x = x, y = y})
-    end
-  end
-  return positions
+	local positions = {}
+	for x = floor(bounding_box.left_top.x), floor(bounding_box.right_bottom.x) do
+		for y = floor(bounding_box.left_top.y), floor(bounding_box.right_bottom.y) do
+		table.insert(positions, {x = x, y = y})
+		end
+	end
+	return positions
 end
 
+---comment
+---@param x integer
+---@param y integer
+---@param surface_name SurfaceIdentification 
+---@param player_index PlayerIdentification
 local function draw_drop_positions_by_xy(x, y, surface_name, player_index)
 	if not (global.drop_target_positions and global.drop_target_positions[surface_name]) then return end
 	local positions_on_surface = global.drop_target_positions[surface_name]
@@ -163,7 +179,7 @@ end
 
 ---comment
 ---@param data table
----@param player_index integer
+---@param player_index PlayerIdentification
 local function trace_belts(data, player_index)
 	local entity = data.entity
 	local from_type = data.from_type
@@ -303,6 +319,8 @@ local function update_drop_locations()
 	-- table.sort(global.all_inserters, function(a,b) return a.unit_number < b.unit_number end)
 end
 
+---comment
+---@param event EventData.CustomInputEvent
 local function toggle_global_inserter_visualizer(event)
 	local player_index = event.player_index
 	if not global.highlight_inserters then global.highlight_inserters = {} end
@@ -331,6 +349,8 @@ local function toggle_global_inserter_visualizer(event)
 	global.from_key = nil
 end
 
+-- script.on_init(function() update_drop_locations() save_entities_for_cutscene() end)
+-- script.on_configuration_changed(function() update_drop_locations() save_entities_for_cutscene() end)
 script.on_init(function() update_drop_locations() end)
 script.on_configuration_changed(function() update_drop_locations() end)
 script.on_event(defines.events.on_built_entity, function(event) entity_built(event) end)
@@ -338,11 +358,22 @@ script.on_event(defines.events.on_robot_built_entity, function(event) entity_bui
 script.on_event(defines.events.script_raised_built, function(event) entity_built(event) end)
 script.on_event("toggle-global-inserter-visualizer", function(event) toggle_global_inserter_visualizer(event) end)
 
+-- ensure that if a surface is renamed, all our functions can still access the data they need
+script.on_event(defines.events.on_surface_renamed, function (event)
+	local old_name, new_name = event.old_name, event.new_name
+	if global.drop_target_positions and global.drop_target_positions[old_name] then
+		global.drop_target_positions[new_name] = global.drop_target_positions[old_name]
+	end
+end)
+
 -- a "factory function" so that the player_index upval can be passed through during for_n_of.
 -- the `callback` in for_n_of receives two inputs, the value and key of the table that is being processed,
 -- so if we call this factory function `factory(uppval_to_pass)` it will return the inner function + the captured upvals,
 -- which will be used as the `callback` in for_n_of.
 -- Thank you so much justarandomgeek and jansharp for explaining this to me :)
+---comment
+---@param player_index PlayerIdentification
+---@return function
 local function draw_drop_positions_partial(player_index)
   return function(inserter)
 		if inserter.valid then
@@ -353,6 +384,10 @@ local function draw_drop_positions_partial(player_index)
   end
 end
 
+---comment
+---@param render_id uint64
+---@return nil
+---@return boolean
 local function destroy_renderings_partial(render_id)
 	rendering.destroy(render_id)
 	return nil, true -- return the "deletion flag" to tell for_n_of to remove it from global.renderings[player_index]
@@ -371,7 +406,6 @@ script.on_event(defines.events.on_tick, function()
 	for player_index, belts in pairs(belt_queue) do
 		local counter = 0
 		for id, data in pairs(belts) do
-			-- if counter > 5 then break end
 			if counter > max_belts_traced_per_tick then break end
 			trace_belts(data, player_index)
 			belts[id] = nil
@@ -388,7 +422,6 @@ script.on_event(defines.events.on_tick, function()
 		global.from_key, results, reached_end = table.for_n_of(
 			global.all_inserters,
 			global.from_key,
-			-- 50,
 			max_inserters_iterated_per_tick,
 			draw_drop_positions_partial(player_index)
 		)
@@ -400,13 +433,12 @@ script.on_event(defines.events.on_tick, function()
 	if not destroy_renderings then return end
 	for player_index, bool in pairs(destroy_renderings) do
 		if not bool then break end
-		-- destroy every renderings for a given player_index
+		-- destroy every rendering for a given player_index
 		local results, reached_end = nil, nil
 		if not global.player_from_key then global.player_from_key = {} end
 		global.player_from_key[player_index], results, reached_end = table.for_n_of(
 			global.renderings[player_index].render_ids,
 			global.player_from_key[player_index],
-			-- 500,
 			max_renderings_destroyed_per_tick,
 			destroy_renderings_partial
 		)

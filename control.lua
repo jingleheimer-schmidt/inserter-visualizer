@@ -1,4 +1,4 @@
-local color = {r = 255, g = 255, b = 0}
+local color = {r = 255, g = 255, b = 0, a = 1}
 local table = require("__flib__.table")
 local floor = math.floor
 local belt_types = {
@@ -54,7 +54,6 @@ end
 
 local function draw_drop_position(inserter, player_index)
 	if not inserter or not inserter.valid then return end
-	color.a = 1
 	local adjusted_position = inserter.drop_position
 	local drop_target = inserter.drop_target
 	local orientation = inserter.orientation
@@ -152,15 +151,10 @@ local function draw_drop_positions_by_xy(x, y, surface_name, player_index)
 	end
 end
 
-local function add_entities_to_trace_queue(traced_belts, belt, player_index, belt_type)
-	if not (traced_belts and traced_belts[belt.unit_number]) then
-		table.insert(global.trace_queue[player_index], {entity = belt, from_type = opposite_type[belt_type]})
-	end
-end
-
+---comment
+---@param data table
+---@param player_index integer
 local function trace_belts(data, player_index)
-
-	-- declare some locals
 	local entity = data.entity
 	local from_type = data.from_type
 	if not (entity and entity.valid) then return end
@@ -189,18 +183,20 @@ local function trace_belts(data, player_index)
 	if not traced_belts[unit_number] then traced_belts[unit_number] = true end
 
 	-- add any connected belts to the queue
+	local unique_untraced = {}
 	for neighbor_type, neighbours in pairs(belt_neighbours) do
-		local unique_untraced = {}
-		if not (neighbor_type == from_type) then
-			for _, neighbour in pairs(neighbours) do
-				if not ((traced_belts and traced_belts[neighbour.unit_number]) and unique_untraced[neighbour.unit_number]) then
-					unique_untraced[neighbour.unit_number] = neighbour
-				end
+		for _, neighbour in pairs(neighbours) do
+			if not (neighbor_type == from_type) and not (traced_belts and traced_belts[neighbour.unit_number]) then
+				unique_untraced[neighbour.unit_number] = {entity = neighbour, type = neighbor_type}
 			end
 		end
-		for _, neighbour in pairs(unique_untraced) do
-			table.insert(global.trace_queue[player_index], {entity = neighbour, from_type = opposite_type[neighbor_type]})
-		end
+	end
+	for _, neighbour_data in pairs(unique_untraced) do
+		local trace_data = {
+			entity = neighbour_data.entity,
+			from_type = opposite_type[neighbour_data.type]
+		}
+		table.insert(global.trace_queue[player_index], trace_data)
 	end
 
 	-- add the other side of an underground to the queue
@@ -211,8 +207,6 @@ local function trace_belts(data, player_index)
 end
 
 script.on_event(defines.events.on_selected_entity_changed, function(event)
-
-	-- declare a some locals
 	local player_index = event.player_index
 	if global.highlight_inserters and global.highlight_inserters[player_index] then return end
 	local player = game.get_player(player_index)
@@ -268,13 +262,14 @@ local function entity_built(event)
 		local drop_target_position = x_axis[y]
 		table.insert(drop_target_position, entity)
 
-		-- add the inserter to the global list
+		-- add the inserter to the global list sorted by unit_number
 		if not global.all_inserters then global.all_inserters = {} end
 		table.insert(global.all_inserters, 1, entity)
 	end
 end
 
 local function update_drop_locations()
+	global.all_inserters = {}
 	for _, surface in pairs(game.surfaces) do
 		local found_inserters = surface.find_entities_filtered({type = "inserter"})
 		for _, inserter in pairs(found_inserters) do
@@ -346,6 +341,10 @@ local function destroy_renderings_partial(render_id)
 	return nil, true -- return the "deletion flag" to tell for_n_of to remove it from global.renderings[player_index]
 end
 
+local max_belts_traced_per_tick = 50
+local max_inserters_iterated_per_tick = 50
+local max_renderings_destroyed_per_tick = 500
+
 script.on_event(defines.events.on_tick, function()
 	local belt_queue = global.trace_queue
 	local inserter_queue = global.inserter_queue
@@ -355,7 +354,8 @@ script.on_event(defines.events.on_tick, function()
 	for player_index, belts in pairs(belt_queue) do
 		local counter = 0
 		for id, data in pairs(belts) do
-			if counter > 5 then break end
+			-- if counter > 5 then break end
+			if counter > max_belts_traced_per_tick then break end
 			trace_belts(data, player_index)
 			belts[id] = nil
 			counter = counter + 1
@@ -371,7 +371,8 @@ script.on_event(defines.events.on_tick, function()
 		global.from_key, results, reached_end = table.for_n_of(
 			global.all_inserters,
 			global.from_key,
-			50,
+			-- 50,
+			max_inserters_iterated_per_tick,
 			draw_drop_positions_partial(player_index)
 		)
 		if reached_end then
@@ -388,7 +389,8 @@ script.on_event(defines.events.on_tick, function()
 		global.player_from_key[player_index], results, reached_end = table.for_n_of(
 			global.renderings[player_index].render_ids,
 			global.player_from_key[player_index],
-			500,
+			-- 500,
+			max_renderings_destroyed_per_tick,
 			destroy_renderings_partial
 		)
 		if reached_end then

@@ -291,11 +291,14 @@ script.on_event(defines.events.on_selected_entity_changed, function(event)
 	end
 end)
 
+---comment
+---@param event EventData.on_robot_built_entity | EventData.on_built_entity | EventData.script_raised_built
 local function entity_built(event)
 	local entity = event.entity or event.created_entity
 	if entity.type == "inserter" then
 
 		-- add the inserter to the global list indexed by xy coordinates
+		---@type table<SurfaceName, table< integer, table< integer, table< integer, LuaEntity> > > >
 		if not global.drop_target_positions then global.drop_target_positions = {} end
 		local drop_target_positions = global.drop_target_positions
 		local surface_name = entity.surface.name
@@ -385,7 +388,7 @@ end)
 -- the `callback` in for_n_of receives two inputs, the value and key of the table that is being processed,
 -- so if we call this factory function `factory(uppval_to_pass)` it will return the inner function + the captured upvals,
 -- which will be used as the `callback` in for_n_of.
--- Thank you so much justarandomgeek and jansharp for explaining this to me :)
+-- Thank you so much justarandomgeek and jansharp for explaining what this is and how it works :)
 ---@param player_index PlayerIndex
 ---@return function
 local function draw_drop_positions_partial(player_index)
@@ -396,12 +399,12 @@ local function draw_drop_positions_partial(player_index)
 		if inserter.valid then
 			draw_drop_position(inserter, player_index)
 		else
-			return nil, true -- return the "deletion flag" to tell for_n_of to remove it from global.all_inserters
+			return nil, true -- return the "deletion flag" to tell `for_n_of()` to remove it from global.all_inserters
 		end
 	end
 end
 
----destroy the provided render_id and return the "deletion flag" to tell `for_n_of` to remove it from global.renderings[player_index]
+---destroy the `render_id` and return the "deletion flag" to tell `for_n_of()` to remove it from `global.renderings[player_index]`
 ---@param render_id uint64
 ---@return nil
 ---@return boolean

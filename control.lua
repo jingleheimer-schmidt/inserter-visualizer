@@ -49,6 +49,12 @@ local dirs_lookup = {
 }
 local active_mods = script.active_mods
 
+-- A player's unique index in LuaGameScript::players. It is given to them when they are created and remains assigned to them until they are removed.
+---@alias PlayerIndex uint
+
+-- The unique name of a surface
+---@alias SurfaceName string
+
 -- thank you _codegreen for concocting this magic function
 ---comment
 ---@param inserter LuaEntity
@@ -69,13 +75,13 @@ end
 
 ---comment
 ---@param inserter LuaEntity
----@param player_index PlayerIdentification
+---@param player_index PlayerIndex
 local function draw_drop_position(inserter, player_index)
 	if not inserter or not inserter.valid then return end
 	local adjusted_position = inserter.drop_position
 	local drop_target = inserter.drop_target
 	local orientation = inserter.orientation
-	local drop_target_offset = 1/4
+	local drop_target_offset = 1/5
 	-- if active_mods["diagonal-inserters"] then
 	-- 	orientation = diagonal_correction[dirs_lookup[orientation]]
 	-- end
@@ -150,9 +156,9 @@ local function draw_drop_position(inserter, player_index)
 	table.insert(global.renderings[player_index].render_ids, render_line)
 end
 
----comment
+--- get every xy position within a given BoundingBox
 ---@param bounding_box BoundingBox
----@return table
+---@return table<integer, MapPosition>
 local function get_positions_in_bounding_box(bounding_box)
 	local positions = {}
 	for x = floor(bounding_box.left_top.x), floor(bounding_box.right_bottom.x) do
@@ -163,11 +169,11 @@ local function get_positions_in_bounding_box(bounding_box)
 	return positions
 end
 
----comment
----@param x integer
----@param y integer
----@param surface_name SurfaceIdentification 
----@param player_index PlayerIdentification
+--- draw any inserter drop_target highlights for given x and y coordinates
+---@param x integer the x coordinate of a position
+---@param y integer the y coordinate of a position
+---@param surface_name SurfaceName
+---@param player_index PlayerIndex
 local function draw_drop_positions_by_xy(x, y, surface_name, player_index)
 	if not (global.drop_target_positions and global.drop_target_positions[surface_name]) then return end
 	local positions_on_surface = global.drop_target_positions[surface_name]
@@ -177,9 +183,14 @@ local function draw_drop_positions_by_xy(x, y, surface_name, player_index)
 	end
 end
 
----comment
----@param data table
----@param player_index PlayerIdentification
+--- TraceData is a table containing a LuaEntity of a transport-belt, underground-belt, or splitter, and a string indicating if the LuaEntity was traced from the "inputs" or "outputs" of the previous belt
+---@class TraceData
+---@field entity LuaEntity
+---@field from_type string
+
+--- draw any inserter drop_target highlights for a given belt, and add any belt_neighbours to the trace queue
+---@param data TraceData
+---@param player_index PlayerIndex
 local function trace_belts(data, player_index)
 	local entity = data.entity
 	local from_type = data.from_type
@@ -192,6 +203,7 @@ local function trace_belts(data, player_index)
 	local unit_number = entity.unit_number
 	local belt_neighbours = entity.belt_neighbours
 	local orientation = entity.orientation
+	local global_data = global
 
 	-- draw any inserter drop positions
 	if type == "splitter" then
@@ -204,9 +216,10 @@ local function trace_belts(data, player_index)
 	end
 
 	-- document that we already traced this belt
-	if not global.traced_belts then global.traced_belts = {} end
-	if not global.traced_belts[player_index] then global.traced_belts[player_index] = {} end
-	local traced_belts = global.traced_belts[player_index]
+	if not global_data.traced_belts then global_data.traced_belts = {} end
+	if not global_data.traced_belts[player_index] then global_data.traced_belts[player_index] = {} end
+	---@type table<PlayerIdentification, uint>
+	local traced_belts = global_data.traced_belts[player_index]
 	if not traced_belts[unit_number] then traced_belts[unit_number] = true end
 
 	-- add any connected belts to the queue
@@ -229,27 +242,28 @@ local function trace_belts(data, player_index)
 			entity = neighbour_data.entity,
 			from_type = opposite_type[neighbour_data.type]
 		}
-		table.insert(global.trace_queue[player_index], trace_data)
+		table.insert(global_data.trace_queue[player_index], trace_data)
 	end
 
 	-- add the other side of an underground to the queue
 	if type == "underground-belt" and entity.neighbours then
 		if traced_belts and traced_belts[entity.neighbours.unit_number] then return end
-		table.insert(global.trace_queue[player_index], {entity = entity.neighbours})
+		table.insert(global_data.trace_queue[player_index], {entity = entity.neighbours})
 	end
 end
 
 script.on_event(defines.events.on_selected_entity_changed, function(event)
 	local player_index = event.player_index
-	if global.highlight_inserters and global.highlight_inserters[player_index] then return end
+	local global_data = global
+	if global_data.highlight_inserters and global_data.highlight_inserters[player_index] then return end
 	local player = game.get_player(player_index)
 	local entity = player.selected
 	local data = nil
 
 	-- clear any renderings for the player
 	::destroy_renderings::
-	if not (global.renderings and global.renderings[player_index]) then goto trace_queue end
-	data = global.renderings[player_index]
+	if not (global_data.renderings and global_data.renderings[player_index]) then goto trace_queue end
+	data = global_data.renderings[player_index]
 	for key, id in pairs(data.render_ids) do
 		rendering.destroy(id)
 	end
@@ -257,23 +271,23 @@ script.on_event(defines.events.on_selected_entity_changed, function(event)
 
 	-- clear any queued belts from the tracer
 	::trace_queue::
-	if global.trace_queue and global.trace_queue[player_index] then
-		global.trace_queue[player_index] = nil
+	if global_data.trace_queue and global_data.trace_queue[player_index] then
+		global_data.trace_queue[player_index] = nil
 	end
-	if global.traced_belts and global.traced_belts[player_index] then
-		global.traced_belts[player_index] = nil
+	if global_data.traced_belts and global_data.traced_belts[player_index] then
+		global_data.traced_belts[player_index] = nil
 	end
 
 	-- draw highlight if entity is an inserter, or add it to the trace queue if it's a belt
 	::highlight_entities::
 	if not (entity and entity.type) then return end
 	local type = entity.type
-	if not global.trace_queue then global.trace_queue = {} end
-	if not global.trace_queue[player_index] then global.trace_queue[player_index] = {} end
+	if not global_data.trace_queue then global_data.trace_queue = {} end
+	if not global_data.trace_queue[player_index] then global_data.trace_queue[player_index] = {} end
 	if type == "inserter" then
 		draw_drop_position(entity, player_index)
 	elseif belt_types[type] then
-		table.insert(global.trace_queue[player_index], {entity = entity})
+		table.insert(global_data.trace_queue[player_index], {entity = entity})
 	end
 end)
 
@@ -323,9 +337,11 @@ end
 ---@param event EventData.CustomInputEvent
 local function toggle_global_inserter_visualizer(event)
 	local player_index = event.player_index
+	---@type table<PlayerIndex, boolean>
 	if not global.highlight_inserters then global.highlight_inserters = {} end
 	if not global.highlight_inserters[player_index] then
 		global.highlight_inserters[player_index] = true
+		---@type table<PlayerIndex, boolean>
 		if not global.inserter_queue then global.inserter_queue = {} end
 		global.inserter_queue[player_index] = true
 	else
@@ -334,6 +350,7 @@ local function toggle_global_inserter_visualizer(event)
 	end
 
 	-- clear any renderings for the player
+	---@type table<PlayerIndex, boolean>
 	if not global.destroy_renderings then global.destroy_renderings = {} end
 	if global.renderings and global.renderings[player_index] then
 		global.destroy_renderings[player_index] = true
@@ -349,8 +366,6 @@ local function toggle_global_inserter_visualizer(event)
 	global.from_key = nil
 end
 
--- script.on_init(function() update_drop_locations() save_entities_for_cutscene() end)
--- script.on_configuration_changed(function() update_drop_locations() save_entities_for_cutscene() end)
 script.on_init(function() update_drop_locations() end)
 script.on_configuration_changed(function() update_drop_locations() end)
 script.on_event(defines.events.on_built_entity, function(event) entity_built(event) end)
@@ -371,26 +386,28 @@ end)
 -- so if we call this factory function `factory(uppval_to_pass)` it will return the inner function + the captured upvals,
 -- which will be used as the `callback` in for_n_of.
 -- Thank you so much justarandomgeek and jansharp for explaining this to me :)
----comment
----@param player_index PlayerIdentification
+---@param player_index PlayerIndex
 ---@return function
 local function draw_drop_positions_partial(player_index)
-  return function(inserter)
+	---@param inserter LuaEntity
+	---@return nil?
+	---@return boolean?
+	return function(inserter)
 		if inserter.valid then
 			draw_drop_position(inserter, player_index)
 		else
 			return nil, true -- return the "deletion flag" to tell for_n_of to remove it from global.all_inserters
 		end
-  end
+	end
 end
 
----comment
+---destroy the provided render_id and return the "deletion flag" to tell `for_n_of` to remove it from global.renderings[player_index]
 ---@param render_id uint64
 ---@return nil
 ---@return boolean
 local function destroy_renderings_partial(render_id)
 	rendering.destroy(render_id)
-	return nil, true -- return the "deletion flag" to tell for_n_of to remove it from global.renderings[player_index]
+	return nil, true
 end
 
 local max_belts_traced_per_tick = 25
@@ -398,16 +415,17 @@ local max_inserters_iterated_per_tick = 25
 local max_renderings_destroyed_per_tick = 250
 
 script.on_event(defines.events.on_tick, function()
-	local belt_queue = global.trace_queue
-	local inserter_queue = global.inserter_queue
-	local destroy_renderings = global.destroy_renderings
+	local global_data = global
+	local belt_queue = global_data.trace_queue ---@type table<PlayerIndex, table<integer, TraceData>>
+	local inserter_queue = global_data.inserter_queue ---@type table<PlayerIndex, boolean>
+	local destroy_renderings = global_data.destroy_renderings ---@type table<PlayerIndex, boolean>
 	::belt_queue::
 	if not belt_queue then goto inserter_queue end
 	for player_index, belts in pairs(belt_queue) do
 		local counter = 0
-		for id, data in pairs(belts) do
+		for id, belt_data in pairs(belts) do
 			if counter > max_belts_traced_per_tick then break end
-			trace_belts(data, player_index)
+			trace_belts(belt_data, player_index)
 			belts[id] = nil
 			counter = counter + 1
 		end
@@ -417,16 +435,16 @@ script.on_event(defines.events.on_tick, function()
 	for player_index, bool in pairs(inserter_queue) do
 		if not bool then break end
 		-- don't start rendering until all the current ones are destroyed
-		if global.destroy_renderings and global.destroy_renderings[player_index] then break end
+		if global_data.destroy_renderings and global_data.destroy_renderings[player_index] then break end
 		local results, reached_end = nil, nil
-		global.from_key, results, reached_end = table.for_n_of(
-			global.all_inserters,
-			global.from_key,
+		global_data.from_key, results, reached_end = table.for_n_of(
+			global_data.all_inserters,
+			global_data.from_key,
 			max_inserters_iterated_per_tick,
 			draw_drop_positions_partial(player_index)
 		)
 		if reached_end then
-			global.inserter_queue[player_index] = false
+			inserter_queue[player_index] = false
 		end
 	end
 	::render_destruction::
@@ -435,15 +453,15 @@ script.on_event(defines.events.on_tick, function()
 		if not bool then break end
 		-- destroy every rendering for a given player_index
 		local results, reached_end = nil, nil
-		if not global.player_from_key then global.player_from_key = {} end
-		global.player_from_key[player_index], results, reached_end = table.for_n_of(
-			global.renderings[player_index].render_ids,
-			global.player_from_key[player_index],
+		if not global_data.player_from_key then global_data.player_from_key = {} end
+		global_data.player_from_key[player_index], results, reached_end = table.for_n_of(
+			global_data.renderings[player_index].render_ids,
+			global_data.player_from_key[player_index],
 			max_renderings_destroyed_per_tick,
 			destroy_renderings_partial
 		)
 		if reached_end then
-			global.renderings[player_index] = nil
+			global_data.renderings[player_index] = nil
 			destroy_renderings[player_index] = false
 		end
 	end

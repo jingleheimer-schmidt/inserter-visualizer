@@ -186,7 +186,7 @@ end
 --- TraceData is a table containing a LuaEntity of a transport-belt, underground-belt, or splitter, and a string indicating if the LuaEntity was traced from the "inputs" or "outputs" of the previous belt
 ---@class TraceData
 ---@field entity LuaEntity
----@field from_type string
+---@field from_type string?
 
 --- draw any inserter drop_target highlights for a given belt, and add any belt_neighbours to the trace queue
 ---@param data TraceData
@@ -205,6 +205,17 @@ local function trace_belts(data, player_index)
 	local orientation = entity.orientation
 	local global_data = global
 
+	-- table.insert(global.renderings[player_index].render_ids, rendering.draw_circle(
+	-- 	{
+	-- 		color = color,
+	-- 		radius = 0.1,
+	-- 		filled = true,
+	-- 		target = entity,
+	-- 		surface = entity.surface,
+	-- 		players = {player_index},
+	-- 	}
+	-- ))
+
 	-- draw any inserter drop positions
 	if type == "splitter" then
 		local splitter_positions = get_positions_in_bounding_box(entity.bounding_box)
@@ -218,7 +229,7 @@ local function trace_belts(data, player_index)
 	-- document that we already traced this belt
 	if not global_data.traced_belts then global_data.traced_belts = {} end
 	if not global_data.traced_belts[player_index] then global_data.traced_belts[player_index] = {} end
-	---@type table<PlayerIdentification, uint>
+	---@type table<PlayerIndex, boolean>
 	local traced_belts = global_data.traced_belts[player_index]
 	if not traced_belts[unit_number] then traced_belts[unit_number] = true end
 
@@ -251,6 +262,77 @@ local function trace_belts(data, player_index)
 		table.insert(global_data.trace_queue[player_index], {entity = entity.neighbours})
 	end
 end
+
+-- local colors = require("__auto-color-lamps__/items_with_colors")
+-- script.on_event(defines.events.on_entity_settings_pasted, function(event)
+-- 	--- testing light stuff
+-- 	local bool = false
+-- 	if bool then
+-- 		local last_entity = event.source
+-- 		-- local entity = game.get_player(event.player_index).selected
+-- 		local entity = event.destination
+-- 		if entity then
+-- 			-- game.print(game.is_valid_sprite_path("entity/" .. entity.name))
+-- 			local bounding_box = entity.bounding_box
+-- 			local positions = get_positions_in_bounding_box(bounding_box)
+-- 			-- local scale = floor(math.sqrt(#positions))
+-- 			local scale = floor(math.sqrt(#positions)) + 1.5
+-- 			local item_name = nil
+-- 			local item_color = nil
+-- 			if entity.type == "assembling-machine" then
+-- 				local recipe = entity.get_recipe()
+-- 				if recipe then
+-- 					for _, data in pairs(colors) do
+-- 						if data.name == recipe.products[1].name then
+-- 							item_name = data.name
+-- 							item_color = data.color
+-- 						end
+-- 					end
+-- 				end
+-- 			end
+-- 			-- scale = scale + math.sqrt(scale)
+-- 			game.print(item_name)
+-- 			local sprite = "utility/empty_sprite"
+-- 			for _, data in pairs(colors) do
+-- 				if not item_name then
+-- 					if data.name == entity.name then
+-- 						game.print("also_true")
+-- 						color = data.color
+-- 						sprite = "entity/" .. data.name
+-- 					end
+-- 				else
+-- 					if data.name == item_name then
+-- 						game.print(true)
+-- 						color = item_color
+-- 						sprite = "item/" .. item_name
+-- 					end
+-- 				end
+-- 			end
+-- 			-- local id = rendering.draw_light({
+-- 			-- 	sprite = sprite,
+-- 			-- 	oriented = false,
+-- 			-- 	orientation = entity.orientation,
+-- 			-- 	target = entity,
+-- 			-- 	surface = entity.surface,
+-- 			-- 	intensity = 1,
+-- 			-- 	scale = scale,
+-- 			-- 	-- color = color,
+-- 			-- })
+-- 			local id = rendering.draw_sprite({
+-- 				sprite = sprite,
+-- 				-- oriented = false,
+-- 				orientation = entity.orientation,
+-- 				target = entity,
+-- 				surface = entity.surface,
+-- 				-- intensity = 1,
+-- 				x_scale = scale,
+-- 				y_scale = scale,
+-- 				render_layer = "radius-visualization",
+-- 				-- color = color,
+-- 			})
+-- 		end
+-- 	end
+-- end)
 
 script.on_event(defines.events.on_selected_entity_changed, function(event)
 	local player_index = event.player_index
@@ -336,10 +418,32 @@ local function update_drop_locations()
 	-- table.sort(global.all_inserters, function(a,b) return a.unit_number < b.unit_number end)
 end
 
+local function clear_renderings_for_player(player_index)
+	-- clear any renderings for the player
+	---@type table<PlayerIndex, boolean>
+	if not global.destroy_renderings then global.destroy_renderings = {} end
+	if global.renderings and global.renderings[player_index] then
+		global.destroy_renderings[player_index] = true
+		global.from_key_render[player_index] = nil
+	end
+end
+
+local function clear_queue_for_player(player_index)
+	-- clear any queued belts from the tracer
+	if global.trace_queue and global.trace_queue[player_index] then
+		global.trace_queue[player_index] = nil
+	end
+	if global.traced_belts and global.traced_belts[player_index] then
+		global.traced_belts[player_index] = nil
+	end
+end
+
 ---comment
 ---@param event EventData.CustomInputEvent
 local function toggle_global_inserter_visualizer(event)
 	local player_index = event.player_index
+	-- clear_renderings_for_player(player_index)
+	-- clear_queue_for_player(player_index)
 	---@type table<PlayerIndex, boolean>
 	if not global.highlight_inserters then global.highlight_inserters = {} end
 	if not global.highlight_inserters[player_index] then
@@ -366,7 +470,44 @@ local function toggle_global_inserter_visualizer(event)
 	if global.traced_belts and global.traced_belts[player_index] then
 		global.traced_belts[player_index] = nil
 	end
-	global.from_key = nil
+	global.from_key_inserter = nil
+	global.from_key_render = nil
+end
+
+---comment
+---@param event EventData.CustomInputEvent
+local function toggle_traced_belt_visualizer(event)
+	local player_index = event.player_index
+	local player = game.get_player(player_index)
+	-- clear any renderings for the player
+	---@type table<PlayerIndex, boolean>
+	if not global.destroy_renderings then global.destroy_renderings = {} end
+	if global.renderings and global.renderings[player_index] then
+		global.destroy_renderings[player_index] = true
+	end
+
+	-- clear any queued belts from the tracer
+	if global.trace_queue and global.trace_queue[player_index] then
+		global.trace_queue[player_index] = nil
+	end
+	if global.traced_belts and global.traced_belts[player_index] then
+		global.traced_belts[player_index] = nil
+	end
+	global.from_key_inserter = nil
+	global.from_key_render = nil
+
+	---@type table<PlayerIndex, boolean>
+	if not global.highlight_inserters then global.highlight_inserters = {} end
+	local selected = player.selected
+	if selected and selected.type and belt_types[selected.type] then
+		if not global.trace_queue then global.trace_queue = {} end
+		if not global.trace_queue[player_index] then global.trace_queue[player_index] = {} end
+		table.insert(global.trace_queue[player_index], {entity = player.selected})
+		global.highlight_inserters[player_index] = true
+	else
+		global.highlight_inserters[player_index] = false
+		global.inserter_queue[player_index] = nil
+	end
 end
 
 script.on_init(function() update_drop_locations() end)
@@ -375,6 +516,8 @@ script.on_event(defines.events.on_built_entity, function(event) entity_built(eve
 script.on_event(defines.events.on_robot_built_entity, function(event) entity_built(event) end)
 script.on_event(defines.events.script_raised_built, function(event) entity_built(event) end)
 script.on_event("toggle-global-inserter-visualizer", function(event) toggle_global_inserter_visualizer(event) end)
+script.on_event("bv-highlight-belt", function(event) toggle_traced_belt_visualizer(event) end)
+-- script.on_event("bv-highlight-belt", function(event) toggle_global_inserter_visualizer(event) end)
 
 -- ensure that if a surface is renamed, all our functions can still access the data they need
 script.on_event(defines.events.on_surface_renamed, function (event)
@@ -422,6 +565,8 @@ script.on_event(defines.events.on_tick, function()
 	local belt_queue = global_data.trace_queue ---@type table<PlayerIndex, table<integer, TraceData>>
 	local inserter_queue = global_data.inserter_queue ---@type table<PlayerIndex, boolean>
 	local destroy_renderings = global_data.destroy_renderings ---@type table<PlayerIndex, boolean>
+	if not global_data.from_key_inserter then global_data.from_key_inserter = {} end
+	if not global_data.from_key_render then global_data.from_key_render = {} end
 	::belt_queue::
 	if not belt_queue then goto inserter_queue end
 	for player_index, belts in pairs(belt_queue) do
@@ -440,14 +585,15 @@ script.on_event(defines.events.on_tick, function()
 		-- don't start rendering until all the current ones are destroyed
 		if global_data.destroy_renderings and global_data.destroy_renderings[player_index] then break end
 		local results, reached_end = nil, nil
-		global_data.from_key, results, reached_end = table.for_n_of(
+		global_data.from_key_inserter[player_index], results, reached_end = table.for_n_of(
 			global_data.all_inserters,
-			global_data.from_key,
+			global_data.from_key_inserter[player_index],
 			max_inserters_iterated_per_tick,
 			draw_drop_positions_partial(player_index)
 		)
 		if reached_end then
 			inserter_queue[player_index] = false
+			global_data.from_key_inserter[player_index] = nil
 		end
 	end
 	::render_destruction::
@@ -456,16 +602,16 @@ script.on_event(defines.events.on_tick, function()
 		if not bool then break end
 		-- destroy every rendering for a given player_index
 		local results, reached_end = nil, nil
-		if not global_data.player_from_key then global_data.player_from_key = {} end
-		global_data.player_from_key[player_index], results, reached_end = table.for_n_of(
+		global_data.from_key_render[player_index], results, reached_end = table.for_n_of(
 			global_data.renderings[player_index].render_ids,
-			global_data.player_from_key[player_index],
+			global_data.from_key_render[player_index],
 			max_renderings_destroyed_per_tick,
 			destroy_renderings_partial
 		)
 		if reached_end then
-			global_data.renderings[player_index] = nil
+			global_data.renderings[player_index].render_ids = {}
 			destroy_renderings[player_index] = false
+			global_data.from_key_render[player_index] = nil
 		end
 	end
 end)

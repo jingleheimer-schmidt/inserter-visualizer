@@ -119,12 +119,20 @@ local function draw_drop_position(inserter, player_index, color)
 		end
 	end
 	local surface = inserter.surface
+	local circle_target_offset = {
+		-- x = inserter.position.x - adjusted_position.x,
+		-- y = inserter.position.y - adjusted_position.y,
+		x = adjusted_position.x - inserter.position.x,
+		y = adjusted_position.y - inserter.position.y,
+	}
 	local render_circle = rendering.draw_circle(
 		{
 			color = color,
 			radius = 0.1,
 			filled = true,
-			target = adjusted_position, -- for future: make target the inserter and use then calculate offset, so it also disapears when the inserter is destroyed?
+			-- target = adjusted_position, -- for future: make target the inserter and use then calculate offset, so it also disapears when the inserter is destroyed?
+			target = inserter,
+			target_offset = circle_target_offset,
 			surface = surface,
 			players = {player_index},
 		}
@@ -204,7 +212,7 @@ local function trace_belts(data, player_index, color)
 	local y = floor(position.y)
 	local surface_name = entity.surface.name
 	local type = entity.type
-	local unit_number = entity.unit_number
+	local unit_number = entity.unit_number --[[@as uint]]
 	local belt_neighbours = entity.belt_neighbours
 	local orientation = entity.orientation
 	local global_data = global
@@ -288,6 +296,7 @@ script.on_event(defines.events.on_selected_entity_changed, function(event)
 	local global_data = global
 	if global_data.highlight_inserters and global_data.highlight_inserters[player_index] then return end
 	local player = game.get_player(player_index)
+	if not player then return end
 	local color = settings.get_player_settings(player_index)["highlight_color"].value
 	local entity = player.selected
 	local data = nil
@@ -376,6 +385,7 @@ local function toggle_traced_belt_visualizer(event)
 	local global_data = global
 	local player_index = event.player_index
 	local player = game.get_player(player_index)
+	if not player then return end
 	clear_renderings_for_player(player_index, global_data)
 	clear_queue_for_player(player_index, global_data)
 	global_data.from_key_inserter = nil
@@ -402,6 +412,7 @@ local function toggle_global_inserter_visualizer(event)
 	local global_data = global
 	local player_index = event.player_index
 	local player = game.get_player(player_index)
+	if not player then return end
 	local entity = player.selected
 	if global_data.single_inserter_queue and global_data.single_inserter_queue[player_index] then
 		global_data.single_inserter_queue[player_index] = nil
@@ -547,7 +558,7 @@ script.on_event(defines.events.on_tick, function()
 	if not single_inserter_queue or not next(single_inserter_queue) then goto belt_queue end
 	for player_index, inserter in pairs(single_inserter_queue) do
 		if global_data.destroy_renderings and global_data.destroy_renderings[player_index] then break end
-		local highlight_color = settings.get_player_settings(player_index)["highlight_color"].value
+		local highlight_color = settings.get_player_settings(player_index)["highlight_color"].value --[[@as Color]]
 		draw_drop_position(inserter, player_index, highlight_color)
 	end
 	::belt_queue::
@@ -556,7 +567,7 @@ script.on_event(defines.events.on_tick, function()
 		if global_data.destroy_renderings and global_data.destroy_renderings[player_index] then break end
 		local player_settings = settings.get_player_settings(player_index)
 		local max_belts_traced_per_tick = player_settings["highlights_per_tick"].value
-		local highlight_color = player_settings["highlight_color"].value
+		local highlight_color = player_settings["highlight_color"].value --[[@as Color]]
 		local counter = 0
 		for id, belt_data in pairs(belts) do
 			if counter > max_belts_traced_per_tick then break end
@@ -576,7 +587,7 @@ script.on_event(defines.events.on_tick, function()
 		if global_data.destroy_renderings and global_data.destroy_renderings[player_index] then break end
 		local player_settings = settings.get_player_settings(player_index)
 		local max_inserters_iterated_per_tick = player_settings["highlights_per_tick"].value
-		local highlight_color = player_settings["highlight_color"].value
+		local highlight_color = player_settings["highlight_color"].value --[[@as Color]]
 		local results, reached_end = nil, nil
 		local reset_count = false
 		if not global_data.from_key_inserter[player_index] then reset_count = true end

@@ -1,5 +1,12 @@
 ---------------------------------------------------------------------------------------------------
-Version: 0.0.13
+Version: 0.0.1
 Date: 13NOV2022
   Changes:
     - initial release on mod portal
+  Features:
+    - added hotkey (default: i) to highlight drop locations of all inserters, just the selected inserter, or inserters along the selected belt transport line
+    - added hotkey (default ctrl + i) to toggle live selection highlighting
+    - added hotbar shortcut button to toggle live selection highlighting
+    - added per-player mod setting for highlight color
+    - added per-player mod setting for highlights drawn per tick
+    - added compatibility to highlight inserters with drop locations on the belts highlighted by Belt Visualizer

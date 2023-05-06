@@ -304,12 +304,22 @@ script.on_event(defines.events.on_selected_entity_changed, function(event)
 
 	-- draw highlight if entity is an inserter, or add it to the trace queue if it's a belt
 	::highlight_entities::
+	if global_data.single_inserter_queue and global_data.single_inserter_queue[player_index] then
+		global_data.single_inserter_queue[player_index] = nil
+	end
 	if not (entity and entity.type) then return end
 	local type = entity.type
 	if not global_data.trace_queue then global_data.trace_queue = {} end
 	if not global_data.trace_queue[player_index] then global_data.trace_queue[player_index] = {} end
 	if type == "inserter" then
-		draw_drop_position(entity, player_index, color)
+		-- draw_drop_position(entity, player_index, color)
+		if not global_data.single_inserter_queue then
+			global_data.single_inserter_queue = {
+				[player_index] = entity
+			}
+		else
+			global_data.single_inserter_queue[player_index] = entity
+		end
 	elseif belt_types[type] then
 		table.insert(global_data.trace_queue[player_index], {entity = entity})
 	end
@@ -362,28 +372,6 @@ end
 
 ---comment
 ---@param event EventData.CustomInputEvent
-local function toggle_global_inserter_visualizer(event)
-	local global_data = global
-	local player_index = event.player_index
-	---@type table<PlayerIndex, boolean>
-	if not global_data.highlight_inserters then global_data.highlight_inserters = {} end
-	if not global_data.highlight_inserters[player_index] then
-		global_data.highlight_inserters[player_index] = true
-		---@type table<PlayerIndex, boolean>
-		if not global_data.inserter_queue then global_data.inserter_queue = {} end
-		global_data.inserter_queue[player_index] = true
-	else
-		global_data.highlight_inserters[player_index] = false
-		global_data.inserter_queue[player_index] = nil
-	end
-	clear_renderings_for_player(player_index, global_data)
-	clear_queue_for_player(player_index, global_data)
-	global_data.from_key_inserter = nil
-	global_data.from_key_render = nil
-end
-
----comment
----@param event EventData.CustomInputEvent
 local function toggle_traced_belt_visualizer(event)
 	local global_data = global
 	local player_index = event.player_index
@@ -409,17 +397,56 @@ local function toggle_traced_belt_visualizer(event)
 end
 
 ---comment
+---@param event EventData.CustomInputEvent
+local function toggle_global_inserter_visualizer(event)
+	local global_data = global
+	local player_index = event.player_index
+	local player = game.get_player(player_index)
+	local entity = player.selected
+	if global_data.single_inserter_queue and global_data.single_inserter_queue[player_index] then
+		global_data.single_inserter_queue[player_index] = nil
+	end
+	if player and entity and belt_types[entity.type] then
+		toggle_traced_belt_visualizer({player_index = player_index})
+	elseif player and entity and entity.type == "inserter" then
+		if not global_data.single_inserter_queue then
+			global_data.single_inserter_queue = {
+				[player_index] = entity
+			}
+		else
+			global_data.single_inserter_queue[player_index] = entity
+		end
+	else
+		---@type table<PlayerIndex, boolean>
+		if not global_data.highlight_inserters then global_data.highlight_inserters = {} end
+		if not global_data.highlight_inserters[player_index] then
+			global_data.highlight_inserters[player_index] = true
+			---@type table<PlayerIndex, boolean>
+			if not global_data.inserter_queue then global_data.inserter_queue = {} end
+			global_data.inserter_queue[player_index] = true
+		else
+			global_data.highlight_inserters[player_index] = false
+			global_data.inserter_queue[player_index] = nil
+		end
+		clear_renderings_for_player(player_index, global_data)
+		clear_queue_for_player(player_index, global_data)
+		global_data.from_key_inserter = nil
+		global_data.from_key_render = nil
+	end
+end
+
+---comment
 ---@param event EventData.on_lua_shortcut | EventData.CustomInputEvent
 local function toggle_selection_highlighting(event)
 	local name = event.prototype_name or event.input_name
-	if not name == "toggle-global-inserter-visualizer-shortcut" then return end
+	if name ~= "toggle-selection-highlighting-shortcut" then return end
 	if not global.selection_highlighting then global.selection_highlighting = {} end
 	if not global.selection_highlighting[event.player_index] then
 		global.selection_highlighting[event.player_index] = true
-		game.get_player(event.player_index).set_shortcut_toggled("toggle-global-inserter-visualizer-shortcut", true)
+		game.get_player(event.player_index).set_shortcut_toggled("toggle-selection-highlighting-shortcut", true)
 	else
 		global.selection_highlighting[event.player_index] = false
-		game.get_player(event.player_index).set_shortcut_toggled("toggle-global-inserter-visualizer-shortcut", false)
+		game.get_player(event.player_index).set_shortcut_toggled("toggle-selection-highlighting-shortcut", false)
 	end
 end
 
@@ -431,7 +458,7 @@ script.on_event(defines.events.script_raised_built, function(event) entity_built
 script.on_event("toggle-global-inserter-visualizer", function(event) toggle_global_inserter_visualizer(event) end)
 script.on_event("bv-highlight-belt", function(event) toggle_traced_belt_visualizer(event) end)
 -- script.on_event("bv-highlight-belt", function(event) toggle_global_inserter_visualizer(event) end)
-script.on_event("toggle-global-inserter-visualizer-shortcut", function(event) toggle_selection_highlighting(event) end)
+script.on_event("toggle-selection-highlighting-shortcut", function(event) toggle_selection_highlighting(event) end)
 script.on_event(defines.events.on_lua_shortcut, function(event) toggle_selection_highlighting(event) end)
 
 -- ensure that if a surface is renamed, all our functions can still access the data they need
@@ -512,16 +539,24 @@ script.on_event(defines.events.on_tick, function()
 	local belt_queue = global_data.trace_queue ---@type table<PlayerIndex, table<integer, TraceData>>
 	local inserter_queue = global_data.inserter_queue ---@type table<PlayerIndex, boolean>
 	local destroy_renderings = global_data.destroy_renderings ---@type table<PlayerIndex, boolean>
+	local single_inserter_queue = global_data.single_inserter_queue ---@type table<PlayerIndex, LuaEntity>
 	if not global_data.from_key_inserter then global_data.from_key_inserter = {} end
 	if not global_data.from_key_render then global_data.from_key_render = {} end
 	if not global_data.message then global_data.message = {} end
+	::single_inserter::
+	if not single_inserter_queue or not next(single_inserter_queue) then goto belt_queue end
+	for player_index, inserter in pairs(single_inserter_queue) do
+		if global_data.destroy_renderings and global_data.destroy_renderings[player_index] then break end
+		local highlight_color = settings.get_player_settings(player_index)["highlight_color"].value
+		draw_drop_position(inserter, player_index, highlight_color)
+	end
 	::belt_queue::
 	if not belt_queue or not next(belt_queue) then goto inserter_queue end
 	for player_index, belts in pairs(belt_queue) do
+		if global_data.destroy_renderings and global_data.destroy_renderings[player_index] then break end
 		local player_settings = settings.get_player_settings(player_index)
 		local max_belts_traced_per_tick = player_settings["highlights_per_tick"].value
 		local highlight_color = player_settings["highlight_color"].value
-		if global_data.destroy_renderings and global_data.destroy_renderings[player_index] then break end
 		local counter = 0
 		for id, belt_data in pairs(belts) do
 			if counter > max_belts_traced_per_tick then break end

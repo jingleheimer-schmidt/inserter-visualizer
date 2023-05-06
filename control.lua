@@ -1,17 +1,18 @@
 
--- colors
-local red = {1.0, 0.0, 0.0, 1.0}
-local orange = {1.0, 0.5, 0.0, 1.0}
-local yellow = {1.0, 1.0, 0.0, 1.0}
-local green = {0.0, 1.0, 0.0, 1.0}
-local blue = {0.0, 0.0, 1.0, 1.0}
-local indigo = {0.29, 0.0, 0.51, 1.0}
-local violet = {0.93, 0.51, 0.93, 1.0}
----@type Color
-local color = violet
+-- -- colors
+-- local red = {1.0, 0.0, 0.0, 1.0}
+-- local orange = {1.0, 0.5, 0.0, 1.0}
+-- local yellow = {1.0, 1.0, 0.0, 1.0}
+-- local green = {0.0, 1.0, 0.0, 1.0}
+-- local blue = {0.0, 0.0, 1.0, 1.0}
+-- local indigo = {0.29, 0.0, 0.51, 1.0}
+-- local violet = {0.93, 0.51, 0.93, 1.0}
+-- ---@type Color
+-- local color = violet
 
 local table = require("__flib__.table")
 local floor = math.floor
+local ceil = math.ceil
 local belt_types = {
 	["transport-belt"] = true,
 	["underground-belt"] = true,
@@ -31,23 +32,23 @@ local opposite_type = {
 	inputs = "outputs",
 	outputs = "inputs",
 }
-local diagonal_correction = {
-	south_west = dirs["west"],
-	north_west = dirs["north"],
-	south_east = dirs["south"],
-	north_east = dirs["east"],
-}
-local dirs_lookup = {
-	[0] = "south",
-	[0.125] = "south_west",
-	[0.25] = "west",
-	[0.375] = "north_west",
-	[0.5] = "north",
-	[0.625] = "north_east",
-	[0.75] = "east",
-	[0.875] = "south_east",
-}
-local active_mods = script.active_mods
+-- local diagonal_correction = {
+-- 	south_west = dirs["west"],
+-- 	north_west = dirs["north"],
+-- 	south_east = dirs["south"],
+-- 	north_east = dirs["east"],
+-- }
+-- local dirs_lookup = {
+-- 	[0] = "south",
+-- 	[0.125] = "south_west",
+-- 	[0.25] = "west",
+-- 	[0.375] = "north_west",
+-- 	[0.5] = "north",
+-- 	[0.625] = "north_east",
+-- 	[0.75] = "east",
+-- 	[0.875] = "south_east",
+-- }
+-- local active_mods = script.active_mods
 
 -- A player's unique index in LuaGameScript::players. It is given to them when they are created and remains assigned to them until they are removed.
 ---@alias PlayerIndex uint
@@ -76,7 +77,8 @@ end
 ---comment
 ---@param inserter LuaEntity
 ---@param player_index PlayerIndex
-local function draw_drop_position(inserter, player_index)
+---@param color Color
+local function draw_drop_position(inserter, player_index, color)
 	if not inserter or not inserter.valid then return end
 	local adjusted_position = inserter.drop_position
 	local drop_target = inserter.drop_target
@@ -122,7 +124,7 @@ local function draw_drop_position(inserter, player_index)
 			color = color,
 			radius = 0.1,
 			filled = true,
-			target = adjusted_position,
+			target = adjusted_position, -- for future: make target the inserter and use then calculate offset, so it also disapears when the inserter is destroyed?
 			surface = surface,
 			players = {player_index},
 		}
@@ -174,12 +176,13 @@ end
 ---@param y integer the y coordinate of a position
 ---@param surface_name SurfaceName
 ---@param player_index PlayerIndex
-local function draw_drop_positions_by_xy(x, y, surface_name, player_index)
+---@param color Color
+local function draw_drop_positions_by_xy(x, y, surface_name, player_index, color)
 	if not (global.drop_target_positions and global.drop_target_positions[surface_name]) then return end
 	local positions_on_surface = global.drop_target_positions[surface_name]
 	if not (positions_on_surface[x] and positions_on_surface[x][y]) then return end
 	for _, inserter in pairs(positions_on_surface[x][y]) do
-		draw_drop_position(inserter, player_index)
+		draw_drop_position(inserter, player_index, color)
 	end
 end
 
@@ -191,7 +194,8 @@ end
 --- draw any inserter drop_target highlights for a given belt, and add any belt_neighbours to the trace queue
 ---@param data TraceData
 ---@param player_index PlayerIndex
-local function trace_belts(data, player_index)
+---@param color Color
+local function trace_belts(data, player_index, color)
 	local entity = data.entity
 	local from_type = data.from_type
 	if not (entity and entity.valid) then return end
@@ -209,10 +213,10 @@ local function trace_belts(data, player_index)
 	if type == "splitter" then
 		local splitter_positions = get_positions_in_bounding_box(entity.bounding_box)
 		for _, splitter_position in pairs(splitter_positions) do
-			draw_drop_positions_by_xy(splitter_position.x, splitter_position.y, surface_name, player_index)
+			draw_drop_positions_by_xy(splitter_position.x, splitter_position.y, surface_name, player_index, color)
 		end
 	elseif type == "transport-belt" or type == "underground-belt" then
-		draw_drop_positions_by_xy(x, y, surface_name, player_index)
+		draw_drop_positions_by_xy(x, y, surface_name, player_index, color)
 	end
 
 	-- document that we already traced this belt
@@ -252,77 +256,6 @@ local function trace_belts(data, player_index)
 	end
 end
 
--- local colors = require("__auto-color-lamps__/items_with_colors")
--- script.on_event(defines.events.on_entity_settings_pasted, function(event)
--- 	--- testing light stuff
--- 	local bool = false
--- 	if bool then
--- 		local last_entity = event.source
--- 		-- local entity = game.get_player(event.player_index).selected
--- 		local entity = event.destination
--- 		if entity then
--- 			-- game.print(game.is_valid_sprite_path("entity/" .. entity.name))
--- 			local bounding_box = entity.bounding_box
--- 			local positions = get_positions_in_bounding_box(bounding_box)
--- 			-- local scale = floor(math.sqrt(#positions))
--- 			local scale = floor(math.sqrt(#positions)) + 1.5
--- 			local item_name = nil
--- 			local item_color = nil
--- 			if entity.type == "assembling-machine" then
--- 				local recipe = entity.get_recipe()
--- 				if recipe then
--- 					for _, data in pairs(colors) do
--- 						if data.name == recipe.products[1].name then
--- 							item_name = data.name
--- 							item_color = data.color
--- 						end
--- 					end
--- 				end
--- 			end
--- 			-- scale = scale + math.sqrt(scale)
--- 			game.print(item_name)
--- 			local sprite = "utility/empty_sprite"
--- 			for _, data in pairs(colors) do
--- 				if not item_name then
--- 					if data.name == entity.name then
--- 						game.print("also_true")
--- 						color = data.color
--- 						sprite = "entity/" .. data.name
--- 					end
--- 				else
--- 					if data.name == item_name then
--- 						game.print(true)
--- 						color = item_color
--- 						sprite = "item/" .. item_name
--- 					end
--- 				end
--- 			end
--- 			-- local id = rendering.draw_light({
--- 			-- 	sprite = sprite,
--- 			-- 	oriented = false,
--- 			-- 	orientation = entity.orientation,
--- 			-- 	target = entity,
--- 			-- 	surface = entity.surface,
--- 			-- 	intensity = 1,
--- 			-- 	scale = scale,
--- 			-- 	-- color = color,
--- 			-- })
--- 			local id = rendering.draw_sprite({
--- 				sprite = sprite,
--- 				-- oriented = false,
--- 				orientation = entity.orientation,
--- 				target = entity,
--- 				surface = entity.surface,
--- 				-- intensity = 1,
--- 				x_scale = scale,
--- 				y_scale = scale,
--- 				render_layer = "radius-visualization",
--- 				-- color = color,
--- 			})
--- 		end
--- 	end
--- end)
-
 ---comment
 ---@param player_index PlayerIndex
 ---@param global_data table? 
@@ -355,6 +288,7 @@ script.on_event(defines.events.on_selected_entity_changed, function(event)
 	local global_data = global
 	if global_data.highlight_inserters and global_data.highlight_inserters[player_index] then return end
 	local player = game.get_player(player_index)
+	local color = settings.get_player_settings(player_index)["highlight_color"].value
 	local entity = player.selected
 	local data = nil
 
@@ -375,7 +309,7 @@ script.on_event(defines.events.on_selected_entity_changed, function(event)
 	if not global_data.trace_queue then global_data.trace_queue = {} end
 	if not global_data.trace_queue[player_index] then global_data.trace_queue[player_index] = {} end
 	if type == "inserter" then
-		draw_drop_position(entity, player_index)
+		draw_drop_position(entity, player_index, color)
 	elseif belt_types[type] then
 		table.insert(global_data.trace_queue[player_index], {entity = entity})
 	end
@@ -514,14 +448,15 @@ end)
 -- which will be used as the `callback` in for_n_of.
 -- Thank you so much justarandomgeek and jansharp for explaining what this is and how it works :)
 ---@param player_index PlayerIndex
+---@param color Color
 ---@return function
-local function draw_drop_positions_partial(player_index)
+local function draw_drop_positions_partial(player_index, color)
 	---@param inserter LuaEntity
 	---@return nil?
 	---@return boolean?
 	return function(inserter)
 		if inserter.valid then
-			draw_drop_position(inserter, player_index)
+			draw_drop_position(inserter, player_index, color)
 		else
 			return nil, true -- return the "deletion flag" to tell `for_n_of()` to remove it from global.all_inserters
 		end
@@ -530,16 +465,47 @@ end
 
 ---destroy the `render_id` and return the "deletion flag" to tell `for_n_of()` to remove it from `global.renderings[player_index]`
 ---@param render_id uint64
----@return nil
----@return boolean
+-- -@return nil
+-- -@return boolean
 local function destroy_renderings_partial(render_id)
+	-- rendering.destroy(render_id)
+	-- return nil, true
 	rendering.destroy(render_id)
-	return nil, true
 end
 
-local max_belts_traced_per_tick = 25
-local max_inserters_iterated_per_tick = 25
-local max_renderings_destroyed_per_tick = 250
+local function update_highlight_message(player_index, pre_text, global_data, iterations, big_table, reset_count, continued_count)
+	if not (global_data.message[player_index] and global_data.message[player_index].render_id) then
+		local percent = ceil(iterations / table_size(big_table) * 100)
+		local player = game.get_player(player_index)
+		if not player then return end
+		global_data.message[player_index] = {
+			render_id = rendering.draw_text{
+				text = pre_text .. ": " .. percent .. "%",
+				target = player.character or player.position,
+				surface = player.surface,
+				color = {1,1,1,1},
+				alignment = "center"
+				-- time_to_live = 60 * 3.5
+			},
+			count = continued_count or iterations
+		}
+	else
+		local message_data = global_data.message[player_index]
+		if reset_count then message_data.count = 0 end
+		message_data.count = message_data.count + iterations
+		local percent = ceil(message_data.count / table_size(big_table) * 100)
+		if rendering.is_valid(message_data.render_id) then
+			rendering.set_text(message_data.render_id, pre_text .. ": " .. percent .. "%")
+		else
+			global_data.message[player_index].render_id = nil
+			update_highlight_message(player_index, pre_text, global_data, iterations, big_table, reset_count, message_data.count)
+		end
+	end
+end
+
+-- local max_belts_traced_per_tick = 25
+-- local max_inserters_iterated_per_tick = 50
+-- local max_renderings_destroyed_per_tick = 100
 
 script.on_event(defines.events.on_tick, function()
 	local global_data = global
@@ -548,14 +514,18 @@ script.on_event(defines.events.on_tick, function()
 	local destroy_renderings = global_data.destroy_renderings ---@type table<PlayerIndex, boolean>
 	if not global_data.from_key_inserter then global_data.from_key_inserter = {} end
 	if not global_data.from_key_render then global_data.from_key_render = {} end
+	if not global_data.message then global_data.message = {} end
 	::belt_queue::
 	if not belt_queue or not next(belt_queue) then goto inserter_queue end
 	for player_index, belts in pairs(belt_queue) do
+		local player_settings = settings.get_player_settings(player_index)
+		local max_belts_traced_per_tick = player_settings["highlights_per_tick"].value
+		local highlight_color = player_settings["highlight_color"].value
 		if global_data.destroy_renderings and global_data.destroy_renderings[player_index] then break end
 		local counter = 0
 		for id, belt_data in pairs(belts) do
 			if counter > max_belts_traced_per_tick then break end
-			trace_belts(belt_data, player_index)
+			trace_belts(belt_data, player_index, highlight_color)
 			belts[id] = nil
 			counter = counter + 1
 		end
@@ -569,16 +539,24 @@ script.on_event(defines.events.on_tick, function()
 		if not bool then break end
 		-- don't start rendering until all the current ones are destroyed
 		if global_data.destroy_renderings and global_data.destroy_renderings[player_index] then break end
+		local player_settings = settings.get_player_settings(player_index)
+		local max_inserters_iterated_per_tick = player_settings["highlights_per_tick"].value
+		local highlight_color = player_settings["highlight_color"].value
 		local results, reached_end = nil, nil
+		local reset_count = false
+		if not global_data.from_key_inserter[player_index] then reset_count = true end
 		global_data.from_key_inserter[player_index], results, reached_end = table.for_n_of(
 			global_data.all_inserters,
 			global_data.from_key_inserter[player_index],
 			max_inserters_iterated_per_tick,
-			draw_drop_positions_partial(player_index)
+			draw_drop_positions_partial(player_index, highlight_color)
 		)
+		update_highlight_message(player_index, "Highlighting Inserters", global_data, max_inserters_iterated_per_tick, global_data.all_inserters, reset_count)
 		if reached_end then
 			inserter_queue[player_index] = false
 			global_data.from_key_inserter[player_index] = nil
+			rendering.destroy(global_data.message[player_index].render_id)
+			global_data.message[player_index] = nil
 		end
 	end
 	::render_destruction::
@@ -586,17 +564,24 @@ script.on_event(defines.events.on_tick, function()
 	for player_index, bool in pairs(destroy_renderings) do
 		if not bool then break end
 		-- destroy every rendering for a given player_index
+		local player_settings = settings.get_player_settings(player_index)
+		local max_renderings_destroyed_per_tick = player_settings["highlights_per_tick"].value * 10
 		local results, reached_end = nil, nil
+		local reset_count = false
+		if not global_data.from_key_render[player_index] then reset_count = true end
 		global_data.from_key_render[player_index], results, reached_end = table.for_n_of(
 			global_data.renderings[player_index].render_ids,
 			global_data.from_key_render[player_index],
 			max_renderings_destroyed_per_tick,
 			destroy_renderings_partial
 		)
+		update_highlight_message(player_index, "Removing Highlights", global_data, max_renderings_destroyed_per_tick, global_data.renderings[player_index].render_ids, reset_count)
 		if reached_end then
 			global_data.renderings[player_index].render_ids = {}
 			destroy_renderings[player_index] = false
 			global_data.from_key_render[player_index] = nil
+			rendering.destroy(global_data.message[player_index].render_id)
+			global_data.message[player_index] = nil
 		end
 	end
 end)

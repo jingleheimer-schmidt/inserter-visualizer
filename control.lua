@@ -87,6 +87,26 @@ local function draw_drop_position(inserter, player_index, color)
 	-- if active_mods["diagonal-inserters"] then
 	-- 	orientation = diagonal_correction[dirs_lookup[orientation]]
 	-- end
+
+	-- if there's no drop target, try to wake the inserter up. because if an inserter goes to sleep before the drop target exists, the inserter won't know about the drop target until it wakes up.
+
+	-- local hand_test = inserter.held_stack.valid_for_read
+	-- if (not hand_test) and (inserter.held_stack.can_set_stack) then
+	-- 	inserter.held_stack.set_stack({name = inserter.prototype.name})
+	-- end
+	if not drop_target then
+		drop_target = inserter.surface.find_entities_filtered({
+			type = {"transport-belt", "undergrount-belt", "splitter"},
+			position = adjusted_position,
+			limit = 1
+		})[1]
+	end
+	-- if not drop_target then
+	-- 	inserter.active = not inserter.active
+	-- 	inserter.active = not inserter.active
+	-- 	drop_target = inserter.drop_target -- for some reason this still doesn't register until the next time we draw highlights... not sure why, since it sounds like they're supposed to wake up "instantly". idk. it's probably fine for now, since once it registers the drop target at least it doesn't forget it. maybe at some point it'll be worth trying to wake the inserter up when a belt is placed at the drop target location. but not today.
+	-- end
+
 	if orientation and drop_target and drop_target.type and belt_types[drop_target.type] then
 		if orientation >= dirs["north_west"] and orientation < dirs["north_east"] then
 		-- if orientation == 0.5 then -- placing north
@@ -118,6 +138,7 @@ local function draw_drop_position(inserter, player_index, color)
 			end
 		end
 	end
+	-- if not hand_test then inserter.held_stack.clear() end
 	local surface = inserter.surface
 	local circle_target_offset = {
 		-- x = inserter.position.x - adjusted_position.x,

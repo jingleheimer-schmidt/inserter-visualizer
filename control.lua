@@ -361,6 +361,7 @@ script.on_event(defines.events.on_selected_entity_changed, function(event)
 end)
 
 ---update the global list of drop target positions and global list of all inserters when a new one is built
+---@param event EventData.on_robot_built_entity | EventData.on_built_entity | EventData.script_raised_built | EventData.on_player_rotated_entity
 local function entity_built(event)
 	local entity = event.entity or event.created_entity
 	if entity.type == "inserter" then
@@ -384,6 +385,12 @@ local function entity_built(event)
 		if not global.all_inserters then global.all_inserters = {} end
 		table.insert(global.all_inserters, 1, entity)
 	end
+end
+
+--- update global list of drop positions when an inserter is rotated
+---@param event EventData.on_player_rotated_entity
+local function entity_rotated(event)
+	entity_built(event)
 end
 
 local function update_drop_locations()
@@ -495,9 +502,9 @@ script.on_configuration_changed(function() update_drop_locations() end)
 script.on_event(defines.events.on_built_entity, function(event) entity_built(event) end)
 script.on_event(defines.events.on_robot_built_entity, function(event) entity_built(event) end)
 script.on_event(defines.events.script_raised_built, function(event) entity_built(event) end)
+script.on_event(defines.events.on_player_rotated_entity, function(event) entity_rotated(event) end)
 script.on_event("toggle-global-inserter-visualizer", function(event) toggle_global_inserter_visualizer(event) end)
 script.on_event("bv-highlight-belt", function(event) toggle_traced_belt_visualizer(event) end)
--- script.on_event("bv-highlight-belt", function(event) toggle_global_inserter_visualizer(event) end)
 script.on_event("toggle-selection-highlighting-shortcut", function(event) toggle_selection_highlighting(event) end)
 script.on_event(defines.events.on_lua_shortcut, function(event) toggle_selection_highlighting(event) end)
 

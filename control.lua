@@ -323,9 +323,9 @@ script.on_event(defines.events.on_selected_entity_changed, function(event)
 	if global_data.highlight_inserters and global_data.highlight_inserters[player_index] then return end
 	local player = game.get_player(player_index)
 	if not player then return end
-	local color = settings.get_player_settings(player_index)["highlight_color"].value
+	-- local color = settings.get_player_settings(player_index)["highlight_color"].value
 	local entity = player.selected
-	local data = nil
+	-- local data = nil
 
 	-- clear any renderings for the player
 	::destroy_renderings::
@@ -360,8 +360,7 @@ script.on_event(defines.events.on_selected_entity_changed, function(event)
 	end
 end)
 
----comment
----@param event EventData.on_robot_built_entity | EventData.on_built_entity | EventData.script_raised_built
+---update the global list of drop target positions and global list of all inserters when a new one is built
 local function entity_built(event)
 	local entity = event.entity or event.created_entity
 	if entity.type == "inserter" then
@@ -405,7 +404,7 @@ local function update_drop_locations()
 	-- table.sort(global.all_inserters, function(a,b) return a.unit_number < b.unit_number end)
 end
 
----comment
+--- turn the belt tracer on or off
 ---@param event EventData.CustomInputEvent
 local function toggle_traced_belt_visualizer(event)
 	local global_data = global
@@ -432,7 +431,7 @@ local function toggle_traced_belt_visualizer(event)
 	end
 end
 
----comment
+--- turn the visualizer on or off for the selected inserter, belt, or all inserters if cursor is empty
 ---@param event EventData.CustomInputEvent
 local function toggle_global_inserter_visualizer(event)
 	local global_data = global
@@ -440,11 +439,14 @@ local function toggle_global_inserter_visualizer(event)
 	local player = game.get_player(player_index)
 	if not player then return end
 	local entity = player.selected
+	-- clear the single_inserter_queue of any previously highlighted inserters
 	if global_data.single_inserter_queue and global_data.single_inserter_queue[player_index] then
 		global_data.single_inserter_queue[player_index] = nil
 	end
+	-- if player selected a belt, start up the belt tracer
 	if player and entity and belt_types[entity.type] then
 		toggle_traced_belt_visualizer({player_index = player_index})
+	-- otherwise add the selected inserter to the single_inserter_queue
 	elseif player and entity and entity.type == "inserter" then
 		if not global_data.single_inserter_queue then
 			global_data.single_inserter_queue = {
@@ -453,6 +455,7 @@ local function toggle_global_inserter_visualizer(event)
 		else
 			global_data.single_inserter_queue[player_index] = entity
 		end
+	-- or if nothing is selected, toggle highlighting all inserters
 	else
 		---@type table<PlayerIndex, boolean>
 		if not global_data.highlight_inserters then global_data.highlight_inserters = {} end
@@ -472,7 +475,7 @@ local function toggle_global_inserter_visualizer(event)
 	end
 end
 
----comment
+--- turn selection highlighting on or off
 ---@param event EventData.on_lua_shortcut | EventData.CustomInputEvent
 local function toggle_selection_highlighting(event)
 	local name = event.prototype_name or event.input_name

@@ -487,14 +487,17 @@ end
 local function toggle_selection_highlighting(event)
 	local name = event.prototype_name or event.input_name
 	if name ~= "toggle-selection-highlighting-shortcut" then return end
+	local player_index = event.player_index
 	if not global.selection_highlighting then global.selection_highlighting = {} end
-	if not global.selection_highlighting[event.player_index] then
-		global.selection_highlighting[event.player_index] = true
-		game.get_player(event.player_index).set_shortcut_toggled("toggle-selection-highlighting-shortcut", true)
-	else
-		global.selection_highlighting[event.player_index] = false
-		game.get_player(event.player_index).set_shortcut_toggled("toggle-selection-highlighting-shortcut", false)
-	end
+	global.selection_highlighting[player_index] = not global.selection_highlighting[player_index]
+	game.get_player(player_index).set_shortcut_toggled("toggle-selection-highlighting-shortcut", global.selection_highlighting[player_index])
+	-- if not global.selection_highlighting[event.player_index] then
+	-- 	global.selection_highlighting[event.player_index] = true
+	-- 	game.get_player(event.player_index).set_shortcut_toggled("toggle-selection-highlighting-shortcut", true)
+	-- else
+	-- 	global.selection_highlighting[event.player_index] = false
+	-- 	game.get_player(event.player_index).set_shortcut_toggled("toggle-selection-highlighting-shortcut", false)
+	-- end
 end
 
 script.on_init(function() update_drop_locations() end)

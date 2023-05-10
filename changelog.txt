@@ -8,5 +8,5 @@ Date: 13NOV2022
     - added hotkey (default ctrl + i) to toggle live selection highlighting
     - added hotbar shortcut button to toggle live selection highlighting
     - added per-player mod setting for highlight color
-    - added per-player mod setting for highlights drawn per tick
-    - added compatibility to highlight inserters with drop locations on the belts highlighted by Belt Visualizer
+    - added per-player mod setting for number of highlights drawn per tick
+    - added compatibility to highlight inserters with drop locations along the belts highlighted by Belt Visualizer mod

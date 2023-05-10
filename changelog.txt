@@ -5,8 +5,8 @@ Date: 13NOV2022
     - initial release on mod portal
   Features:
     - added hotkey (default: i) to highlight drop locations of all inserters, just the selected inserter, or inserters along the selected belt transport line
-    - added hotkey (default ctrl + i) to toggle live selection highlighting
-    - added hotbar shortcut button to toggle live selection highlighting
+    - added hotbar shortcut button and linked hotkey (default: ctrl + i) to toggle live selection highlighting of any hovered inserter or transport belt line
     - added per-player mod setting for highlight color
     - added per-player mod setting for number of highlights drawn per tick
     - added compatibility to highlight inserters with drop locations along the belts highlighted by Belt Visualizer mod
+    - added progress status message (% complete) when rendering or removing inserter drop location highlights over a period of time

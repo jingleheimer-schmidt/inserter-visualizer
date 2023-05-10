@@ -379,7 +379,7 @@ local function toggle_traced_belt_visualizer(event)
 		if not global_data.trace_queue then global_data.trace_queue = {} end
 		if not global.trace_queue[player_index] then global_data.trace_queue[player_index] = {} end
 		table.insert(global_data.trace_queue[player_index], {entity = player.selected})
-		global_data.highlight_inserters[player_index] = true
+		global_data.highlight_inserters[player_index] = true -- so when you toggle while selecting a belt type entity, the highlight is persistent once you select something else
 	else
 		global_data.highlight_inserters[player_index] = false
 		if not global_data.inserter_queue then return end
@@ -411,6 +411,7 @@ local function toggle_global_inserter_visualizer(event)
 		else
 			global_data.single_inserter_queue[player_index] = entity
 		end
+		global_data.highlight_inserters[player_index] = true -- so when you toggle while selecting an inserter, the highlight is persistent once you select something else
 	-- or if nothing is selected, toggle highlighting all inserters
 	else
 		---@type table<PlayerIndex, boolean>

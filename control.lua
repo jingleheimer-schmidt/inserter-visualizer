@@ -1,15 +1,4 @@
 
--- -- colors
--- local red = {1.0, 0.0, 0.0, 1.0}
--- local orange = {1.0, 0.5, 0.0, 1.0}
--- local yellow = {1.0, 1.0, 0.0, 1.0}
--- local green = {0.0, 1.0, 0.0, 1.0}
--- local blue = {0.0, 0.0, 1.0, 1.0}
--- local indigo = {0.29, 0.0, 0.51, 1.0}
--- local violet = {0.93, 0.51, 0.93, 1.0}
--- ---@type Color
--- local color = violet
-
 local table = require("__flib__.table")
 local floor = math.floor
 local ceil = math.ceil
@@ -32,23 +21,6 @@ local opposite_type = {
 	inputs = "outputs",
 	outputs = "inputs",
 }
--- local diagonal_correction = {
--- 	south_west = dirs["west"],
--- 	north_west = dirs["north"],
--- 	south_east = dirs["south"],
--- 	north_east = dirs["east"],
--- }
--- local dirs_lookup = {
--- 	[0] = "south",
--- 	[0.125] = "south_west",
--- 	[0.25] = "west",
--- 	[0.375] = "north_west",
--- 	[0.5] = "north",
--- 	[0.625] = "north_east",
--- 	[0.75] = "east",
--- 	[0.875] = "south_east",
--- }
--- local active_mods = script.active_mods
 
 -- A player's unique index in LuaGameScript::players. It is given to them when they are created and remains assigned to them until they are removed.
 ---@alias PlayerIndex uint
@@ -57,7 +29,6 @@ local opposite_type = {
 ---@alias SurfaceName string
 
 -- thank you _codegreen for concocting this magic function
----comment
 ---@param inserter LuaEntity
 ---@param drop_target LuaEntity
 ---@return boolean
@@ -74,7 +45,7 @@ local function flip_adjustment(inserter, drop_target)
 	return belt_direction == (inserter.direction + offset) % 8
 end
 
----comment
+---do a little math and then make the calls to LuaRendering to draw the drop position for the given inserter
 ---@param inserter LuaEntity
 ---@param player_index PlayerIndex
 ---@param color Color
@@ -84,16 +55,7 @@ local function draw_drop_position(inserter, player_index, color)
 	local drop_target = inserter.drop_target
 	local orientation = inserter.orientation
 	local drop_target_offset = 1/5
-	-- if active_mods["diagonal-inserters"] then
-	-- 	orientation = diagonal_correction[dirs_lookup[orientation]]
-	-- end
-
-	-- if there's no drop target, try to wake the inserter up. because if an inserter goes to sleep before the drop target exists, the inserter won't know about the drop target until it wakes up.
-
-	-- local hand_test = inserter.held_stack.valid_for_read
-	-- if (not hand_test) and (inserter.held_stack.can_set_stack) then
-	-- 	inserter.held_stack.set_stack({name = inserter.prototype.name})
-	-- end
+	-- if there's no drop target, search the pickup location for a possible drop_target that the inserter doesn't know about yet. this would happen if an inserter goes to sleep before the drop target exists; the inserter won't know about the drop target until it wakes up. not a perfect solution, but should be good enough since this is a rather rare case to begin with.
 	if not drop_target then
 		drop_target = inserter.surface.find_entities_filtered({
 			type = {"transport-belt", "undergrount-belt", "splitter"},
@@ -101,12 +63,6 @@ local function draw_drop_position(inserter, player_index, color)
 			limit = 1
 		})[1]
 	end
-	-- if not drop_target then
-	-- 	inserter.active = not inserter.active
-	-- 	inserter.active = not inserter.active
-	-- 	drop_target = inserter.drop_target -- for some reason this still doesn't register until the next time we draw highlights... not sure why, since it sounds like they're supposed to wake up "instantly". idk. it's probably fine for now, since once it registers the drop target at least it doesn't forget it. maybe at some point it'll be worth trying to wake the inserter up when a belt is placed at the drop target location. but not today.
-	-- end
-
 	if orientation and drop_target and drop_target.type and belt_types[drop_target.type] then
 		if orientation >= dirs["north_west"] and orientation < dirs["north_east"] then
 		-- if orientation == 0.5 then -- placing north
@@ -138,11 +94,8 @@ local function draw_drop_position(inserter, player_index, color)
 			end
 		end
 	end
-	-- if not hand_test then inserter.held_stack.clear() end
 	local surface = inserter.surface
 	local circle_target_offset = {
-		-- x = inserter.position.x - adjusted_position.x,
-		-- y = inserter.position.y - adjusted_position.y,
 		x = adjusted_position.x - inserter.position.x,
 		y = adjusted_position.y - inserter.position.y,
 	}
@@ -151,7 +104,6 @@ local function draw_drop_position(inserter, player_index, color)
 			color = color,
 			radius = 0.1,
 			filled = true,
-			-- target = adjusted_position, -- for future: make target the inserter and use then calculate offset, so it also disapears when the inserter is destroyed?
 			target = inserter,
 			target_offset = circle_target_offset,
 			surface = surface,
@@ -290,11 +242,10 @@ local function trace_belts(data, player_index, color)
 	end
 end
 
----comment
+-- clear any renderings for the player
 ---@param player_index PlayerIndex
 ---@param global_data table? 
 local function clear_renderings_for_player(player_index, global_data)
-	-- clear any renderings for the player
 	global_data = global_data or global
 	---@type table<PlayerIndex, boolean>
 	if not global_data.destroy_renderings then global_data.destroy_renderings = {} end
@@ -303,11 +254,10 @@ local function clear_renderings_for_player(player_index, global_data)
 	end
 end
 
----comment
+-- clear any queued belts from the tracer
 ---@param player_index PlayerIndex
 ---@param global_data table? 
 local function clear_queue_for_player(player_index, global_data)
-	-- clear any queued belts from the tracer
 	global_data = global_data or global
 	if global_data.trace_queue and global_data.trace_queue[player_index] then
 		global_data.trace_queue[player_index] = nil
@@ -323,9 +273,7 @@ script.on_event(defines.events.on_selected_entity_changed, function(event)
 	if global_data.highlight_inserters and global_data.highlight_inserters[player_index] then return end
 	local player = game.get_player(player_index)
 	if not player then return end
-	-- local color = settings.get_player_settings(player_index)["highlight_color"].value
 	local entity = player.selected
-	-- local data = nil
 
 	-- clear any renderings for the player
 	::destroy_renderings::
@@ -393,6 +341,7 @@ local function entity_rotated(event)
 	entity_built(event)
 end
 
+-- reset the global tables of inserters and drop locations
 local function update_drop_locations()
 	global.all_inserters = {}
 	for _, surface in pairs(game.surfaces) do
@@ -491,13 +440,6 @@ local function toggle_selection_highlighting(event)
 	if not global.selection_highlighting then global.selection_highlighting = {} end
 	global.selection_highlighting[player_index] = not global.selection_highlighting[player_index]
 	game.get_player(player_index).set_shortcut_toggled("toggle-selection-highlighting-shortcut", global.selection_highlighting[player_index])
-	-- if not global.selection_highlighting[event.player_index] then
-	-- 	global.selection_highlighting[event.player_index] = true
-	-- 	game.get_player(event.player_index).set_shortcut_toggled("toggle-selection-highlighting-shortcut", true)
-	-- else
-	-- 	global.selection_highlighting[event.player_index] = false
-	-- 	game.get_player(event.player_index).set_shortcut_toggled("toggle-selection-highlighting-shortcut", false)
-	-- end
 end
 
 script.on_init(function() update_drop_locations() end)
@@ -562,7 +504,6 @@ local function update_highlight_message(player_index, pre_text, global_data, ite
 				surface = player.surface,
 				color = {1,1,1,1},
 				alignment = "center"
-				-- time_to_live = 60 * 3.5
 			},
 			count = continued_count or iterations
 		}
@@ -580,10 +521,7 @@ local function update_highlight_message(player_index, pre_text, global_data, ite
 	end
 end
 
--- local max_belts_traced_per_tick = 25
--- local max_inserters_iterated_per_tick = 50
--- local max_renderings_destroyed_per_tick = 100
-
+-- the core, the main mod loop, this is where it all happens :)
 script.on_event(defines.events.on_tick, function()
 	local global_data = global
 	local belt_queue = global_data.trace_queue ---@type table<PlayerIndex, table<integer, TraceData>>

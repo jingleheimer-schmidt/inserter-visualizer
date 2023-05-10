@@ -211,7 +211,12 @@ local function draw_drop_positions_by_xy(x, y, surface_name, player_index, color
 	local positions_on_surface = global.drop_target_positions[surface_name]
 	if not (positions_on_surface[x] and positions_on_surface[x][y]) then return end
 	for _, inserter in pairs(positions_on_surface[x][y]) do
-		draw_drop_position(inserter, player_index, color)
+		if (inserter.valid and (floor(inserter.drop_position.x) == x) and (floor(inserter.drop_position.y) == y)) then
+		-- if not inserter.valid then break end
+		-- local drop_position = inserter.drop_position
+		-- if not ((floor(drop_position.x) == x) and (floor(drop_position.y) == y)) then break end
+			draw_drop_position(inserter, player_index, color)
+		end
 	end
 end
 

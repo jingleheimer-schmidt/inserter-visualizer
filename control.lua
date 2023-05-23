@@ -270,7 +270,7 @@ local function clear_queue_for_player(player_index, global_data)
 	end
 end
 
-script.on_event(defines.events.on_selected_entity_changed, function(event)
+local function selected_entity_changed(event)
 	local player_index = event.player_index
 	local global_data = global
 	if global_data.highlight_inserters and global_data.highlight_inserters[player_index] then return end
@@ -309,7 +309,7 @@ script.on_event(defines.events.on_selected_entity_changed, function(event)
 	elseif belt_types[type] then
 		table.insert(global_data.trace_queue[player_index], {entity = entity})
 	end
-end)
+end
 
 ---update the global list of drop target positions and global list of all inserters when a new one is built
 ---@param event EventData.on_robot_built_entity | EventData.on_built_entity | EventData.script_raised_built | EventData.on_player_rotated_entity | EventData.on_entity_settings_pasted
@@ -455,25 +455,14 @@ local function toggle_selection_highlighting(event)
 	game.get_player(player_index).set_shortcut_toggled("toggle-selection-highlighting-shortcut", global.selection_highlighting[player_index])
 end
 
-script.on_init(function() update_drop_locations() end)
-script.on_configuration_changed(function() update_drop_locations() end)
-script.on_event(defines.events.on_built_entity, function(event) entity_built(event) end)
-script.on_event(defines.events.on_robot_built_entity, function(event) entity_built(event) end)
-script.on_event(defines.events.script_raised_built, function(event) entity_built(event) end)
-script.on_event(defines.events.on_player_rotated_entity, function(event) entity_rotated(event) end)
-script.on_event(defines.events.on_entity_settings_pasted, function(event) entity_settings_pasted(event) end)
-script.on_event("toggle-global-inserter-visualizer", function(event) toggle_global_inserter_visualizer(event) end)
-script.on_event("bv-highlight-belt", function(event) toggle_traced_belt_visualizer(event) end)
-script.on_event("toggle-selection-highlighting-shortcut", function(event) toggle_selection_highlighting(event) end)
-script.on_event(defines.events.on_lua_shortcut, function(event) toggle_selection_highlighting(event) end)
-
 -- ensure that if a surface is renamed, all our functions can still access the data they need
-script.on_event(defines.events.on_surface_renamed, function (event)
+---@param event EventData.on_surface_renamed
+local function surface_renamed(event)
 	local old_name, new_name = event.old_name, event.new_name
 	if global.drop_target_positions and global.drop_target_positions[old_name] then
 		global.drop_target_positions[new_name] = global.drop_target_positions[old_name]
 	end
-end)
+end
 
 -- a "factory function" so that the player_index upval can be passed through during for_n_of.
 -- the `callback` in for_n_of receives two inputs, the value and key of the table that is being processed,
@@ -506,6 +495,14 @@ local function destroy_renderings_partial(render_id)
 	rendering.destroy(render_id)
 end
 
+---update the highlighting progress indicator
+---@param player_index PlayerIndex
+---@param pre_text string
+---@param global_data table
+---@param iterations number
+---@param big_table table
+---@param reset_count boolean
+---@param continued_count number?
 local function update_highlight_message(player_index, pre_text, global_data, iterations, big_table, reset_count, continued_count)
 	if not (global_data.message[player_index] and global_data.message[player_index].render_id) then
 		local percent = ceil(iterations / table_size(big_table) * 100)
@@ -536,7 +533,7 @@ local function update_highlight_message(player_index, pre_text, global_data, ite
 end
 
 -- the core, the main mod loop, this is where it all happens :)
-script.on_event(defines.events.on_tick, function()
+local function on_tick()
 	local global_data = global
 	local belt_queue = global_data.trace_queue ---@type table<PlayerIndex, table<integer, TraceData>>
 	local inserter_queue = global_data.inserter_queue ---@type table<PlayerIndex, boolean>
@@ -577,7 +574,7 @@ script.on_event(defines.events.on_tick, function()
 		-- don't start rendering until all the current ones are destroyed
 		if global_data.destroy_renderings and global_data.destroy_renderings[player_index] then break end
 		local player_settings = settings.get_player_settings(player_index)
-		local max_inserters_iterated_per_tick = player_settings["highlights_per_tick"].value
+		local max_inserters_iterated_per_tick = player_settings["highlights_per_tick"].value --[[@as number]]
 		local highlight_color = player_settings["highlight_color"].value --[[@as Color]]
 		local results, reached_end = nil, nil
 		local reset_count = false
@@ -621,4 +618,19 @@ script.on_event(defines.events.on_tick, function()
 			global_data.message[player_index] = nil
 		end
 	end
-end)
+end
+
+script.on_init(update_drop_locations)
+script.on_configuration_changed(update_drop_locations)
+script.on_event(defines.events.on_tick, on_tick)
+script.on_event(defines.events.on_built_entity, entity_built)
+script.on_event(defines.events.on_robot_built_entity, entity_built)
+script.on_event(defines.events.script_raised_built, entity_built)
+script.on_event(defines.events.on_player_rotated_entity, entity_rotated)
+script.on_event(defines.events.on_entity_settings_pasted, entity_settings_pasted)
+script.on_event(defines.events.on_selected_entity_changed, selected_entity_changed)
+script.on_event("toggle-global-inserter-visualizer", toggle_global_inserter_visualizer)
+script.on_event("bv-highlight-belt", toggle_traced_belt_visualizer)
+script.on_event("toggle-selection-highlighting-shortcut", toggle_selection_highlighting)
+script.on_event(defines.events.on_lua_shortcut, toggle_selection_highlighting)
+script.on_event(defines.events.on_surface_renamed, surface_renamed)

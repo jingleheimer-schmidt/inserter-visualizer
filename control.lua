@@ -55,6 +55,9 @@ local function draw_drop_position(inserter, player_index, color)
 	local drop_target = inserter.drop_target
 	local orientation = inserter.orientation
 	local drop_target_offset = 1/5
+	if game.active_mods["diagonal-inserter"] then
+		drop_target_offset = 0
+	end
 	-- if there's no drop target, search the pickup location for a possible drop_target that the inserter doesn't know about yet. this would happen if an inserter goes to sleep before the drop target exists; the inserter won't know about the drop target until it wakes up. not a perfect solution, but should be good enough since this is a rather rare case to begin with.
 	if not drop_target then
 		drop_target = inserter.surface.find_entities_filtered({
@@ -309,10 +312,10 @@ script.on_event(defines.events.on_selected_entity_changed, function(event)
 end)
 
 ---update the global list of drop target positions and global list of all inserters when a new one is built
----@param event EventData.on_robot_built_entity | EventData.on_built_entity | EventData.script_raised_built | EventData.on_player_rotated_entity
+---@param event EventData.on_robot_built_entity | EventData.on_built_entity | EventData.script_raised_built | EventData.on_player_rotated_entity | EventData.on_entity_settings_pasted
 local function entity_built(event)
-	local entity = event.entity or event.created_entity
-	if entity.type == "inserter" then
+	local entity = event.entity or event.created_entity or event.destination
+	if entity and entity.type == "inserter" then
 
 		-- add the inserter to the global list indexed by xy coordinates
 		---@type table<SurfaceName, table< integer, table< integer, table< integer, LuaEntity> > > >
@@ -339,6 +342,15 @@ end
 ---@param event EventData.on_player_rotated_entity
 local function entity_rotated(event)
 	entity_built(event)
+end
+
+---update global list of drop positions when an inserter settings are pasted
+---@param event EventData.on_entity_settings_pasted
+local function entity_settings_pasted(event)
+	local active_mods = game.active_mods
+	if active_mods["bobinserters"] or active_mods["Inserter_Config"] then
+		entity_built(event)
+	end
 end
 
 -- reset the global tables of inserters and drop locations
@@ -412,7 +424,7 @@ local function toggle_global_inserter_visualizer(event)
 			global_data.single_inserter_queue[player_index] = entity
 		end
 		global_data.highlight_inserters[player_index] = true -- so when you toggle while selecting an inserter, the highlight is persistent once you select something else
-	-- or if nothing is selected, toggle highlighting all inserters
+	-- or if something else / nothing is selected, toggle highlighting all inserters
 	else
 		---@type table<PlayerIndex, boolean>
 		if not global_data.highlight_inserters then global_data.highlight_inserters = {} end
@@ -449,6 +461,7 @@ script.on_event(defines.events.on_built_entity, function(event) entity_built(eve
 script.on_event(defines.events.on_robot_built_entity, function(event) entity_built(event) end)
 script.on_event(defines.events.script_raised_built, function(event) entity_built(event) end)
 script.on_event(defines.events.on_player_rotated_entity, function(event) entity_rotated(event) end)
+script.on_event(defines.events.on_entity_settings_pasted, function(event) entity_settings_pasted(event) end)
 script.on_event("toggle-global-inserter-visualizer", function(event) toggle_global_inserter_visualizer(event) end)
 script.on_event("bv-highlight-belt", function(event) toggle_traced_belt_visualizer(event) end)
 script.on_event("toggle-selection-highlighting-shortcut", function(event) toggle_selection_highlighting(event) end)
@@ -589,7 +602,7 @@ script.on_event(defines.events.on_tick, function()
 		if not bool then break end
 		-- destroy every rendering for a given player_index
 		local player_settings = settings.get_player_settings(player_index)
-		local max_renderings_destroyed_per_tick = player_settings["highlights_per_tick"].value * 10
+		local max_renderings_destroyed_per_tick = player_settings["highlights_per_tick"].value * 10 * 5
 		local results, reached_end = nil, nil
 		local reset_count = false
 		if not global_data.from_key_render[player_index] then reset_count = true end

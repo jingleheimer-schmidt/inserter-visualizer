@@ -404,30 +404,21 @@ local function toggle_global_inserter_visualizer(event)
 	local player_index = event.player_index
 	local player = game.get_player(player_index)
 	if not player then return end
-	local entity = player.selected
+	local selected_entity = player.selected
+	global.highlight_inserters = global.highlight_inserters or {} ---@type table<PlayerIndex, boolean>
+	global.inserter_queue = global.inserter_queue or {} ---@type table<PlayerIndex, boolean>
+	global.single_inserter_queue = global.single_inserter_queue or {} ---@type table<PlayerIndex, LuaEntity>
 	-- clear the single_inserter_queue of any previously highlighted inserters
-	if global.single_inserter_queue and global.single_inserter_queue[player_index] then
-		global.single_inserter_queue[player_index] = nil
-	end
+	global.single_inserter_queue[player_index] = nil
 	-- if player selected a belt, start up the belt tracer
-	if player and entity and belt_types[entity.type] then
+	if player and selected_entity and belt_types[selected_entity.type] then
 		toggle_traced_belt_visualizer({player_index = player_index})
 	-- otherwise add the selected inserter to the single_inserter_queue
-	elseif player and entity and entity.type == "inserter" then
-		if not global.single_inserter_queue then
-			global.single_inserter_queue = {
-				[player_index] = entity
-			}
-		else
-			global.single_inserter_queue[player_index] = entity
-		end
+	elseif player and selected_entity and selected_entity.type == "inserter" then
+		global.single_inserter_queue[player_index] = selected_entity
 		global.highlight_inserters[player_index] = true -- so when you toggle while selecting an inserter, the highlight is persistent once you select something else
 	-- or if something else / nothing is selected, toggle highlighting all inserters
 	else
-		---@type table<PlayerIndex, boolean>
-		global.highlight_inserters = global.highlight_inserters or {}
-		---@type table<PlayerIndex, boolean>
-		global.inserter_queue = global.inserter_queue or {}
 		if not global.highlight_inserters[player_index] then
 			global.highlight_inserters[player_index] = true
 			global.inserter_queue[player_index] = true

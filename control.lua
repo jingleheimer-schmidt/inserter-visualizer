@@ -630,7 +630,7 @@ script.on_event(defines.events.on_player_rotated_entity, entity_rotated)
 script.on_event(defines.events.on_entity_settings_pasted, entity_settings_pasted)
 script.on_event(defines.events.on_selected_entity_changed, selected_entity_changed)
 script.on_event("toggle-global-inserter-visualizer", toggle_global_inserter_visualizer)
-script.on_event("bv-highlight-belt", toggle_traced_belt_visualizer)
+if script.active_mods["belt-visualizer"] then script.on_event("bv-highlight-belt", toggle_traced_belt_visualizer) end
 script.on_event("toggle-selection-highlighting-shortcut", toggle_selection_highlighting)
 script.on_event(defines.events.on_lua_shortcut, toggle_selection_highlighting)
 script.on_event(defines.events.on_surface_renamed, surface_renamed)

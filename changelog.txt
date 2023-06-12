@@ -3,6 +3,7 @@ Version: 0.0.2
 Date: ????
   Changes:
     - code organization and cleanup
+    - resolve error on load when Belt Visualizer mod is not active
 ---------------------------------------------------------------------------------------------------
 Version: 0.0.1
 Date: 22MAY2023

@@ -375,72 +375,70 @@ end
 --- turn the belt tracer on or off
 ---@param event EventData.CustomInputEvent
 local function toggle_traced_belt_visualizer(event)
-	local global_data = global
 	local player_index = event.player_index
 	local player = game.get_player(player_index)
 	if not player then return end
-	clear_renderings_for_player(player_index, global_data)
-	clear_queue_for_player(player_index, global_data)
-	global_data.from_key_inserter = nil
-	global_data.from_key_render = nil
+	clear_renderings_for_player(player_index, global)
+	clear_queue_for_player(player_index, global)
+	global.from_key_inserter = nil
+	global.from_key_render = nil
 
 	---@type table<PlayerIndex, boolean>
-	if not global_data.highlight_inserters then global_data.highlight_inserters = {} end
+	global.highlight_inserters = global.highlight_inserters or {}
 	local selected = player.selected
 	if selected and selected.type and belt_types[selected.type] then
-		if not global_data.trace_queue then global_data.trace_queue = {} end
-		if not global.trace_queue[player_index] then global_data.trace_queue[player_index] = {} end
-		table.insert(global_data.trace_queue[player_index], {entity = player.selected})
-		global_data.highlight_inserters[player_index] = true -- so when you toggle while selecting a belt type entity, the highlight is persistent once you select something else
+		global.trace_queue = global.trace_queue or {}
+		global.trace_queue[player_index] = global.trace_queue[player_index] or {}
+		table.insert(global.trace_queue[player_index], {entity = player.selected})
+		global.highlight_inserters[player_index] = true -- so when you toggle while selecting a belt type entity, the highlight is persistent once you select something else
 	else
-		global_data.highlight_inserters[player_index] = false
-		if not global_data.inserter_queue then return end
-		global_data.inserter_queue[player_index] = nil
+		global.highlight_inserters[player_index] = false
+		if not global.inserter_queue then return end
+		global.inserter_queue[player_index] = nil
 	end
 end
 
 --- turn the visualizer on or off for the selected inserter, belt, or all inserters if cursor is empty
 ---@param event EventData.CustomInputEvent
 local function toggle_global_inserter_visualizer(event)
-	local global_data = global
 	local player_index = event.player_index
 	local player = game.get_player(player_index)
 	if not player then return end
 	local entity = player.selected
 	-- clear the single_inserter_queue of any previously highlighted inserters
-	if global_data.single_inserter_queue and global_data.single_inserter_queue[player_index] then
-		global_data.single_inserter_queue[player_index] = nil
+	if global.single_inserter_queue and global.single_inserter_queue[player_index] then
+		global.single_inserter_queue[player_index] = nil
 	end
 	-- if player selected a belt, start up the belt tracer
 	if player and entity and belt_types[entity.type] then
 		toggle_traced_belt_visualizer({player_index = player_index})
 	-- otherwise add the selected inserter to the single_inserter_queue
 	elseif player and entity and entity.type == "inserter" then
-		if not global_data.single_inserter_queue then
-			global_data.single_inserter_queue = {
+		if not global.single_inserter_queue then
+			global.single_inserter_queue = {
 				[player_index] = entity
 			}
 		else
-			global_data.single_inserter_queue[player_index] = entity
+			global.single_inserter_queue[player_index] = entity
 		end
-		global_data.highlight_inserters[player_index] = true -- so when you toggle while selecting an inserter, the highlight is persistent once you select something else
+		global.highlight_inserters[player_index] = true -- so when you toggle while selecting an inserter, the highlight is persistent once you select something else
 	-- or if something else / nothing is selected, toggle highlighting all inserters
 	else
 		---@type table<PlayerIndex, boolean>
-		if not global_data.highlight_inserters then global_data.highlight_inserters = {} end
-		if not global_data.highlight_inserters[player_index] then
-			global_data.highlight_inserters[player_index] = true
-			---@type table<PlayerIndex, boolean>
-			if not global_data.inserter_queue then global_data.inserter_queue = {} end
-			global_data.inserter_queue[player_index] = true
+		global.highlight_inserters = global.highlight_inserters or {}
+		---@type table<PlayerIndex, boolean>
+		global.inserter_queue = global.inserter_queue or {}
+		if not global.highlight_inserters[player_index] then
+			global.highlight_inserters[player_index] = true
+			global.inserter_queue[player_index] = true
 		else
-			global_data.highlight_inserters[player_index] = false
-			global_data.inserter_queue[player_index] = nil
+			global.highlight_inserters[player_index] = false
+			global.inserter_queue[player_index] = nil
 		end
-		clear_renderings_for_player(player_index, global_data)
-		clear_queue_for_player(player_index, global_data)
-		global_data.from_key_inserter = nil
-		global_data.from_key_render = nil
+		clear_renderings_for_player(player_index, global)
+		clear_queue_for_player(player_index, global)
+		global.from_key_inserter = nil
+		global.from_key_render = nil
 	end
 end
 

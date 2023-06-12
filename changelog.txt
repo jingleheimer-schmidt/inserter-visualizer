@@ -1,4 +1,11 @@
 ---------------------------------------------------------------------------------------------------
+Version: 0.0.2
+Date: 11JUN2023
+  Changes:
+    - code organization and cleanup
+    - resolve error on load when Belt Visualizer mod is not active
+    - resolve error when toggling global inserter visualizer before queue was initialized
+---------------------------------------------------------------------------------------------------
 Version: 0.0.1
 Date: 22MAY2023
   Changes:

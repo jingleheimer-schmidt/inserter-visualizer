@@ -155,21 +155,36 @@ local function get_positions_in_bounding_box(bounding_box)
     return positions
 end
 
---- draw any inserter drop_target highlights for given x and y coordinates
+--- search the area for inserters with drop positions at the given xy coordinates, and draw drop position highlights for them
 ---@param x integer the x coordinate of a position
 ---@param y integer the y coordinate of a position
 ---@param surface_name SurfaceName
 ---@param player_index PlayerIndex
 ---@param color Color
 local function draw_drop_positions_by_xy(x, y, surface_name, player_index, color)
-    if not (global.drop_target_positions and global.drop_target_positions[surface_name]) then return end
-    local positions_on_surface = global.drop_target_positions[surface_name]
-    if not (positions_on_surface[x] and positions_on_surface[x][y]) then return end
-    for _, inserter in pairs(positions_on_surface[x][y]) do
+    local surface = game.get_surface(surface_name)
+    if not (surface and surface.valid) then return end
+    local max_inserter_reach_distance = game.max_inserter_reach_distance * 1.5
+
+    -- since x and y were already floored, put them back to the middle of a tile
+    x = x + 0.5
+    y = y + 0.5
+
+    local search_area = {
+        left_top = { x - max_inserter_reach_distance, y - max_inserter_reach_distance },
+        right_bottom = { x + max_inserter_reach_distance, y + max_inserter_reach_distance }
+    }
+    local found_inserters = surface.find_entities_filtered({
+        type = "inserter",
+        area = search_area
+    })
+
+    -- re-floor the x and y coordinates for the drop positions
+    x = x - 0.5
+    y = y - 0.5
+
+    for _, inserter in pairs(found_inserters) do
         if (inserter.valid and (floor(inserter.drop_position.x) == x) and (floor(inserter.drop_position.y) == y)) then
-            -- if not inserter.valid then break end
-            -- local drop_position = inserter.drop_position
-            -- if not ((floor(drop_position.x) == x) and (floor(drop_position.y) == y)) then break end
             draw_drop_position(inserter, player_index, color)
         end
     end
@@ -311,67 +326,6 @@ local function selected_entity_changed(event)
     end
 end
 
----update the global list of drop target positions and global list of all inserters when a new one is built
----@param event EventData.on_robot_built_entity | EventData.on_built_entity | EventData.script_raised_built | EventData.on_player_rotated_entity | EventData.on_entity_settings_pasted
-local function entity_built(event)
-    local entity = event.entity or event.created_entity or event.destination
-    if entity and entity.type == "inserter" then
-
-        -- add the inserter to the global list indexed by xy coordinates
-        ---@type table<SurfaceName, table< integer, table< integer, table< integer, LuaEntity> > > >
-        if not global.drop_target_positions then global.drop_target_positions = {} end
-        local drop_target_positions = global.drop_target_positions
-        local surface_name = entity.surface.name
-        local x = floor(entity.drop_position.x)
-        local y = floor(entity.drop_position.y)
-        if not drop_target_positions[surface_name] then drop_target_positions[surface_name] = {} end
-        local positions_on_surface = drop_target_positions[surface_name]
-        if not positions_on_surface[x] then positions_on_surface[x] = {} end
-        local x_axis = positions_on_surface[x]
-        if not x_axis[y] then x_axis[y] = {} end
-        local drop_target_position = x_axis[y]
-        table.insert(drop_target_position, entity)
-
-        -- add the inserter to the global list sorted by unit_number
-        if not global.all_inserters then global.all_inserters = {} end
-        table.insert(global.all_inserters, 1, entity)
-    end
-end
-
---- update global list of drop positions when an inserter is rotated
----@param event EventData.on_player_rotated_entity
-local function entity_rotated(event)
-    entity_built(event)
-end
-
----update global list of drop positions when an inserter settings are pasted
----@param event EventData.on_entity_settings_pasted
-local function entity_settings_pasted(event)
-    local active_mods = game.active_mods
-    if active_mods["bobinserters"] or active_mods["Inserter_Config"] then
-        entity_built(event)
-    end
-end
-
--- reset the global tables of inserters and drop locations
-local function update_drop_locations()
-    global.all_inserters = {}
-    for _, surface in pairs(game.surfaces) do
-        local found_inserters = surface.find_entities_filtered({ type = "inserter" })
-        for _, inserter in pairs(found_inserters) do
-            if inserter and inserter.valid then
-                local event = {
-                    entity = inserter
-                }
-                entity_built(event)
-            end
-        end
-    end
-    -- for table.sort, return true to sort a before b, or return false to sort b before a
-    table.sort(global.all_inserters, function(a, b) return a.unit_number > b.unit_number end)
-    -- table.sort(global.all_inserters, function(a,b) return a.unit_number < b.unit_number end)
-end
-
 --- turn the belt tracer on or off
 ---@param event EventData.CustomInputEvent
 local function toggle_traced_belt_visualizer(event)
@@ -408,8 +362,8 @@ local function toggle_global_inserter_visualizer(event)
     global.highlight_inserters = global.highlight_inserters or {} ---@type table<PlayerIndex, boolean>
     global.inserter_queue = global.inserter_queue or {} ---@type table<PlayerIndex, boolean>
     global.single_inserter_queue = global.single_inserter_queue or {} ---@type table<PlayerIndex, LuaEntity>
-    -- clear the single_inserter_queue of any previously highlighted inserters
-    global.single_inserter_queue[player_index] = nil
+    global.player_inserters = global.player_inserters or {} ---@type table<PlayerIndex, LuaEntity[]>
+    -- clear the single_inserter_queue of any previously highlightelobal.single_inserter_queue[player_index] = nil
     -- if player selected a belt, start up the belt tracer
     if player and selected_entity and belt_types[selected_entity.type] then
         toggle_traced_belt_visualizer({ player_index = player_index })
@@ -422,9 +376,12 @@ local function toggle_global_inserter_visualizer(event)
         if not global.highlight_inserters[player_index] then
             global.highlight_inserters[player_index] = true
             global.inserter_queue[player_index] = true
+            global.player_inserters[player_index] = player.surface.find_entities_filtered({ type = "inserter" })
+            -- table.sort(global.player_inserters[player_index], function(a, b) return a.unit_number < b.unit_number end)
         else
             global.highlight_inserters[player_index] = false
             global.inserter_queue[player_index] = nil
+            global.player_inserters[player_index] = nil
         end
         clear_renderings_for_player(player_index, global)
         clear_queue_for_player(player_index, global)
@@ -442,15 +399,6 @@ local function toggle_selection_highlighting(event)
     if not global.selection_highlighting then global.selection_highlighting = {} end
     global.selection_highlighting[player_index] = not global.selection_highlighting[player_index]
     game.get_player(player_index).set_shortcut_toggled("toggle-selection-highlighting-shortcut", global.selection_highlighting[player_index])
-end
-
--- ensure that if a surface is renamed, all our functions can still access the data they need
----@param event EventData.on_surface_renamed
-local function surface_renamed(event)
-    local old_name, new_name = event.old_name, event.new_name
-    if global.drop_target_positions and global.drop_target_positions[old_name] then
-        global.drop_target_positions[new_name] = global.drop_target_positions[old_name]
-    end
 end
 
 -- a "factory function" so that the player_index upval can be passed through during for_n_of.
@@ -516,8 +464,7 @@ local function update_highlight_message(player_index, pre_text, global_data, ite
             rendering.set_text(message_data.render_id, pre_text .. ": " .. percent .. "%")
         else
             global_data.message[player_index].render_id = nil
-            update_highlight_message(player_index, pre_text, global_data, iterations, big_table, reset_count,
-                message_data.count)
+            update_highlight_message(player_index, pre_text, global_data, iterations, big_table, reset_count, message_data.count)
         end
     end
 end
@@ -563,19 +510,25 @@ local function on_tick()
         if not bool then break end
         -- don't start rendering until all the current ones are destroyed
         if global_data.destroy_renderings and global_data.destroy_renderings[player_index] then break end
+        local player_inserters = global_data.player_inserters and global_data.player_inserters[player_index]
+        if not player_inserters then
+            global.highlight_inserters[player_index] = false
+            global.inserter_queue[player_index] = nil
+            goto render_destruction
+        end
         local player_settings = settings.get_player_settings(player_index)
-        local max_inserters_iterated_per_tick = player_settings["highlights_per_tick"].value --[[@as number]]
+        local max_highlights_per_tick = player_settings["highlights_per_tick"].value --[[@as number]]
         local highlight_color = player_settings["highlight_color"].value --[[@as Color]]
         local results, reached_end = nil, nil
         local reset_count = false
         if not global_data.from_key_inserter[player_index] then reset_count = true end
         global_data.from_key_inserter[player_index], results, reached_end = table.for_n_of(
-            global_data.all_inserters,
+            player_inserters,
             global_data.from_key_inserter[player_index],
-            max_inserters_iterated_per_tick,
+            max_highlights_per_tick,
             draw_drop_positions_partial(player_index, highlight_color)
         )
-        update_highlight_message(player_index, "Highlighting Inserters", global_data, max_inserters_iterated_per_tick, global_data.all_inserters, reset_count)
+        update_highlight_message(player_index, "Highlighting Inserters", global_data, max_highlights_per_tick, player_inserters, reset_count)
         if reached_end then
             inserter_queue[player_index] = false
             global_data.from_key_inserter[player_index] = nil
@@ -610,17 +563,15 @@ local function on_tick()
     end
 end
 
-script.on_init(update_drop_locations)
-script.on_configuration_changed(update_drop_locations)
+local function on_configuration_changed()
+    global = {}
+    rendering.clear("inserter-visualizer")
+end
+
 script.on_event(defines.events.on_tick, on_tick)
-script.on_event(defines.events.on_built_entity, entity_built)
-script.on_event(defines.events.on_robot_built_entity, entity_built)
-script.on_event(defines.events.script_raised_built, entity_built)
-script.on_event(defines.events.on_player_rotated_entity, entity_rotated)
-script.on_event(defines.events.on_entity_settings_pasted, entity_settings_pasted)
+script.on_configuration_changed(on_configuration_changed)
 script.on_event(defines.events.on_selected_entity_changed, selected_entity_changed)
 script.on_event("toggle-global-inserter-visualizer", toggle_global_inserter_visualizer)
 if script.active_mods["belt-visualizer"] then script.on_event("bv-highlight-belt", toggle_traced_belt_visualizer) end
 script.on_event("toggle-selection-highlighting-shortcut", toggle_selection_highlighting)
 script.on_event(defines.events.on_lua_shortcut, toggle_selection_highlighting)
-script.on_event(defines.events.on_surface_renamed, surface_renamed)

@@ -2,6 +2,9 @@
 Version: 0.0.5
 Date: ????
   Changes:
+  Locale:
+    - added French (fr) locale from Crowdin
+    - added German (de) locale from Crowdin
 ---------------------------------------------------------------------------------------------------
 Version: 0.0.4
 Date: 18NOV2023

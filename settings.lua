@@ -1,7 +1,8 @@
+
 local highlight_color = {
     type = "color-setting",
     name = "highlight_color",
-    default_value = {1,1,1,1},
+    default_value = { 1, 1, 1, 1 },
     setting_type = "runtime-per-user"
 }
 

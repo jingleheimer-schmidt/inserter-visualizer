@@ -2,6 +2,7 @@
 Version: 0.0.5
 Date: ????
   Changes:
+    - increased default highlights per tick mod setting from 5 to 30 ticks
   Locale:
     - added French (fr) locale from Crowdin
     - added German (de) locale from Crowdin

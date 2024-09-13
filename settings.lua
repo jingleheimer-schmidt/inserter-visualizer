@@ -9,7 +9,7 @@ local highlight_color = {
 local highlights_per_tick = {
     type = "int-setting",
     name = "highlights_per_tick",
-    default_value = 5,
+    default_value = 30,
     minimum_value = 1,
     setting_type = "runtime-per-user"
 }

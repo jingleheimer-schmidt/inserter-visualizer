@@ -5,6 +5,7 @@ Date: ????
     - restructured code to dynamically find inserters instead of using a global cache (fixed memory leak, improved loading time, reduced save file size, increased reliability and accuracy)
     - increased highlights per tick default mod setting value from 5 to 30 ticks
     - update mod thumbnail image
+    - update license year
   Locale:
     - added localization for status text renderings
     - changed status message from % complete to [count] of [total]

@@ -448,7 +448,7 @@ local function update_highlight_message(player_index, pre_text, global_data, ite
         if not player then return end
         global_data.message[player_index] = {
             render_id = rendering.draw_text {
-                text = { "", pre_text, ": ", iterations, " of ", total },
+                text = { "status-message.status-update", pre_text, iterations, total },
                 target = player.character or player.position,
                 surface = player.surface,
                 color = { 1, 1, 1, 1 },
@@ -463,7 +463,7 @@ local function update_highlight_message(player_index, pre_text, global_data, ite
         message_data.count = message_data.count + iterations
         -- local percent = ceil(message_data.count / table_size(big_table) * 100)
         if rendering.is_valid(message_data.render_id) then
-            rendering.set_text(message_data.render_id, { "", pre_text, ": ", message_data.count, " of ", message_data.total })
+            rendering.set_text(message_data.render_id, { "status-message.status-update", pre_text, message_data.count, message_data.total })
         else
             global_data.message[player_index].render_id = nil
             update_highlight_message(player_index, pre_text, global_data, iterations, big_table, reset_count, message_data.count)

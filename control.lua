@@ -55,9 +55,9 @@ local function draw_drop_position(inserter, player_index, color)
     local drop_target = inserter.drop_target
     local orientation = inserter.orientation
     local drop_target_offset = 1 / 5
-    if game.active_mods["diagonal-inserter"] then
-        drop_target_offset = 0
-    end
+    -- if game.active_mods["diagonal-inserter"] then
+    --     drop_target_offset = 0
+    -- end
     -- if there's no drop target, search the pickup location for a possible drop_target that the inserter doesn't know about yet. this would happen if an inserter goes to sleep before the drop target exists; the inserter won't know about the drop target until it wakes up. not a perfect solution, but should be good enough since this is a rather rare case to begin with.
     if not drop_target then
         drop_target = inserter.surface.find_entities_filtered({

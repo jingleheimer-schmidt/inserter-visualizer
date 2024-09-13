@@ -434,7 +434,7 @@ end
 
 ---update the highlighting progress indicator
 ---@param player_index PlayerIndex
----@param pre_text string
+---@param pre_text LocalisedString
 ---@param global_data table
 ---@param iterations number
 ---@param big_table table
@@ -528,7 +528,7 @@ local function on_tick()
             max_highlights_per_tick,
             draw_drop_positions_partial(player_index, highlight_color)
         )
-        update_highlight_message(player_index, "Highlighting Inserters", global_data, max_highlights_per_tick, player_inserters, reset_count)
+        update_highlight_message(player_index, { "status-message.highlighting-inserters" }, global_data, max_highlights_per_tick, player_inserters, reset_count)
         if reached_end then
             inserter_queue[player_index] = false
             global_data.from_key_inserter[player_index] = nil
@@ -552,7 +552,7 @@ local function on_tick()
             max_renderings_destroyed_per_tick,
             destroy_renderings_partial
         )
-        update_highlight_message(player_index, "Removing Highlights", global_data, max_renderings_destroyed_per_tick, global_data.renderings[player_index].render_ids, reset_count)
+        update_highlight_message(player_index, { "status-message.removing-highlights" }, global_data, max_renderings_destroyed_per_tick, global_data.renderings[player_index].render_ids, reset_count)
         if reached_end then
             global_data.renderings[player_index].render_ids = {}
             destroy_renderings[player_index] = false

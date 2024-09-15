@@ -18,6 +18,8 @@ This mod also adds a quickbar shortcut and associated hotkey (default: ctrl/cmd 
 Help translate Cooked Fish to more languages: https://crowdin.com/project/factorio-mods-localization
 Currently available locale:
 - English (en)
+- German (de)
+- French (fr)
 - Russian (ru)
 - Ukrainian (uk)
 
@@ -29,5 +31,5 @@ This mod cannot detect when another mod changes the drop position of an inserter
 
 ---------------------
 # License
-Inserter Visualizer © 2023 by asher_sky is licensed under Attribution-NonCommercial-ShareAlike 4.0 International.
+Inserter Visualizer © 2024 by asher_sky is licensed under Attribution-NonCommercial-ShareAlike 4.0 International.
 To view a copy of this license, visit http://creativecommons.org/licenses/by-nc-sa/4.0/

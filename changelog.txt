@@ -1,6 +1,8 @@
 ---------------------------------------------------------------------------------------------------
 Version: 0.0.7
 Date: ????
+  Changes:
+    - updated mod description
   Bugfixes:
     - fixed offset calculation for drop locations on underground belts in some configurations
   Locale:

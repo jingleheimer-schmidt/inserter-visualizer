@@ -2,7 +2,7 @@
 	"name": "inserter-visualizer",
 	"version": "0.0.7",
 	"title": "Inserter Visualizer",
-	"description": "Indicates which lane of a belt an inserter will place onto. \n\n- Use hotkey \"i\" to highlight drop locations of all inserters, just the selected inserter, or inserters placing onto the selected transport belt line. \n- Use hotkey \"ctrl + i\" to toggle live selection highlighting.",
+	"description": "Indicates which lane of a belt inserters place onto. \n\n- Use the smart-hotkey __CONTROL__toggle-global-inserter-visualizer__ to highlight drop locations of all inserters, just the selected inserter, or inserters placing onto the selected transport belt line. \n- Use __CONTROL__toggle-selection-highlighting-shortcut__ to toggle live selection highlighting.",
 	"author": "asher_sky",
 	"dependencies": ["base >= 1.1.61", "flib"],
 	"factorio_version": "1.1"

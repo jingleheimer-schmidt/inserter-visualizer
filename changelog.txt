@@ -3,6 +3,9 @@ Version: 0.0.7
 Date: ????
   Bugfixes:
     - fixed offset calculation for drop locations on underground belts in some configurations
+  Locale:
+    - added locale strings for mod name and description
+    - added locale strings for the custom input names and descriptions
 ---------------------------------------------------------------------------------------------------
 Version: 0.0.6
 Date: 23SEP2024

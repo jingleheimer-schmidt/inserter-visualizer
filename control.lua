@@ -28,19 +28,18 @@ local opposite_type = {
 -- The unique name of a surface
 ---@alias SurfaceName string
 
--- thank you _codegreen for concocting this magic function
+-- thank you _codegreen for helping with this magic function
 ---@param inserter LuaEntity
 ---@param drop_target LuaEntity
 ---@return boolean
 local function flip_adjustment(inserter, drop_target)
-    -- local entity = inserter.drop_target
-    -- if not entity then return false end
-    -- if not belt_types[entity.type] then return false end
     local belt_direction = drop_target.direction
     local inputs = drop_target.belt_neighbours.inputs
     local offset = 0
-    if #inputs == 1 and belt_direction ~= inputs[1].direction then
-        offset = (belt_direction - inputs[1].direction) % 8 == 2 and 2 or 4
+    if drop_target.type ~= "underground-belt" then
+        if #inputs == 1 and belt_direction ~= inputs[1].direction then
+            offset = (belt_direction - inputs[1].direction) % 8 == 2 and 2 or 4
+        end
     end
     return belt_direction == (inserter.direction + offset) % 8
 end

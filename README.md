@@ -30,5 +30,5 @@ To report a compatibility issue, please make a post on the discussion page.
 
 ---------------------
 # License
-Inserter Visualizer © 2024 by asher_sky is licensed under Attribution-NonCommercial-ShareAlike 4.0 International.
+Inserter Visualizer © 2024-2025 by asher_sky is licensed under Attribution-NonCommercial-ShareAlike 4.0 International.
 To view a copy of this license, visit http://creativecommons.org/licenses/by-nc-sa/4.0/

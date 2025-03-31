@@ -49,7 +49,7 @@ end
 ---@param player_index PlayerIndex
 ---@param color Color
 local function draw_drop_position(inserter, player_index, color)
-    if not inserter or not inserter.valid then return end
+    if not (inserter and inserter.valid) then return end
     local adjusted_position = inserter.drop_position
     local drop_target = inserter.drop_target
     local orientation = inserter.orientation

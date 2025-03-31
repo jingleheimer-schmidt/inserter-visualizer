@@ -101,44 +101,31 @@ local function draw_drop_position(inserter, player_index, color)
         x = adjusted_position.x - inserter.position.x,
         y = adjusted_position.y - inserter.position.y,
     }
-    local render_circle = rendering.draw_circle(
-        {
-            color = color,
-            radius = 0.1,
-            filled = true,
-            target = inserter,
-            target_offset = circle_target_offset,
-            surface = surface,
-            players = { player_index },
-        }
-    )
-    local render_line = rendering.draw_line(
-        {
-            color = color,
-            width = 3, -- 32px per tile
-            gap_length = 0,
-            dash_length = 0,
-            from = inserter,
-            to = adjusted_position,
-            surface = surface,
-            players = { player_index },
-        }
-    )
-    if not storage.renderings then
-        storage.renderings = {
-            [player_index] = {
-                player = player,
-                render_ids = {}
-            }
-        }
-    elseif not storage.renderings[player_index] then
-        storage.renderings[player_index] = {
-            player = player,
-            render_ids = {}
-        }
-    end
-    table.insert(storage.renderings[player_index].render_ids, render_circle)
-    table.insert(storage.renderings[player_index].render_ids, render_line)
+    local circle_render_object = rendering.draw_circle {
+        color = color,
+        radius = 0.1,
+        filled = true,
+        target = inserter,
+        target_offset = circle_target_offset,
+        surface = surface,
+        players = { player_index },
+    }
+    local line_render_object = rendering.draw_line {
+        color = color,
+        width = 3, -- 32px per tile
+        gap_length = 0,
+        dash_length = 0,
+        from = inserter,
+        to = adjusted_position,
+        surface = surface,
+        players = { player_index },
+    }
+    ---@type table<PlayerIndex, LuaRenderObject[]>
+    storage.render_objects = storage.render_objects or {}
+    storage.render_objects[player_index] = storage.render_objects[player_index] or {}
+
+    table.insert(storage.render_objects[player_index], circle_render_object)
+    table.insert(storage.render_objects[player_index], line_render_object)
 end
 
 --- get every xy position within a given BoundingBox
@@ -263,7 +250,7 @@ end
 local function clear_renderings_for_player(player_index)
     ---@type table<PlayerIndex, boolean>
     storage.destroy_renderings = storage.destroy_renderings or {}
-    if storage.renderings and storage.renderings[player_index] then
+    if storage.render_objects and storage.render_objects[player_index] then
         storage.destroy_renderings[player_index] = true
     end
 end
@@ -288,7 +275,7 @@ local function selected_entity_changed(event)
 
     -- clear any renderings for the player
     ::destroy_renderings::
-    if not (storage.renderings and storage.renderings[player_index]) then goto trace_queue end
+    if not (storage.render_objects and storage.render_objects[player_index]) then goto trace_queue end
     clear_renderings_for_player(player_index)
 
     -- clear any queued belts from the tracer
@@ -348,10 +335,13 @@ local function toggle_global_inserter_visualizer(event)
     local player = game.get_player(player_index)
     if not player then return end
     local selected_entity = player.selected
-    storage.highlight_inserters = storage.highlight_inserters or {} ---@type table<PlayerIndex, boolean>
-    storage.inserter_queue = storage.inserter_queue or {} ---@type table<PlayerIndex, boolean>
-    storage.single_inserter_queue = storage.single_inserter_queue or {} ---@type table<PlayerIndex, LuaEntity>
-    storage.player_inserters = storage.player_inserters or {} ---@type table<PlayerIndex, LuaEntity[]>
+    ---@type table<PlayerIndex, boolean>
+    storage.highlight_inserters = storage.highlight_inserters or {}
+    ---@type table<PlayerIndex, boolean>
+    storage.inserter_queue = storage.inserter_queue or {}
+    ---@type table<PlayerIndex, LuaEntity[]>
+    storage.player_inserters = storage.player_inserters or {}
+    storage.single_inserter_queue = storage.single_inserter_queue or {}
     -- clear the single_inserter_queue of any previously highlightelobal.single_inserter_queue[player_index] = nil
     -- if player selected a belt, start up the belt tracer
     if player and selected_entity and belt_types[selected_entity.type] then
@@ -462,10 +452,10 @@ end
 
 -- the core, the main mod loop, this is where it all happens :)
 local function on_tick()
-    local belt_queue = storage.trace_queue ---@type table<PlayerIndex, table<integer, TraceData>>
-    local inserter_queue = storage.inserter_queue ---@type table<PlayerIndex, boolean>
-    local destroy_renderings = storage.destroy_renderings ---@type table<PlayerIndex, boolean>
-    local single_inserter_queue = storage.single_inserter_queue ---@type table<PlayerIndex, LuaEntity>
+    local belt_queue = storage.trace_queue
+    local inserter_queue = storage.inserter_queue
+    local destroy_renderings = storage.destroy_renderings
+    local single_inserter_queue = storage.single_inserter_queue
     if not storage.from_key_inserter then storage.from_key_inserter = {} end
     if not storage.from_key_render then storage.from_key_render = {} end
     if not storage.message then storage.message = {} end
@@ -537,14 +527,14 @@ local function on_tick()
         local reset_count = false
         if not storage.from_key_render[player_index] then reset_count = true end
         storage.from_key_render[player_index], results, reached_end = table.for_n_of(
-            storage.renderings[player_index].render_ids,
+            storage.render_objects[player_index].render_ids,
             storage.from_key_render[player_index],
             max_renderings_destroyed_per_tick,
             destroy_renderings_partial
         )
-        update_highlight_message(player_index, { "status-message.removing-highlights" }, storage, max_renderings_destroyed_per_tick, storage.renderings[player_index].render_ids, reset_count)
+        update_highlight_message(player_index, { "status-message.removing-highlights" }, storage, max_renderings_destroyed_per_tick, storage.render_objects[player_index].render_ids, reset_count)
         if reached_end then
-            storage.renderings[player_index].render_ids = {}
+            storage.render_objects[player_index].render_ids = {}
             destroy_renderings[player_index] = false
             storage.from_key_render[player_index] = nil
             rendering.destroy(storage.message[player_index].render_id)

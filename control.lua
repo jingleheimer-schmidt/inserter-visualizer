@@ -308,13 +308,8 @@ local function selected_entity_changed(event)
     storage.trace_queue[player_index] = storage.trace_queue[player_index] or {}
     if type == "inserter" then
         -- draw_drop_position(entity, player_index, color)
-        if not storage.single_inserter_queue then
-            storage.single_inserter_queue = {
-                [player_index] = entity
-            }
-        else
-            storage.single_inserter_queue[player_index] = entity
-        end
+        storage.single_inserter_queue = storage.single_inserter_queue or {}
+        storage.single_inserter_queue[player_index] = entity
     elseif belt_types[type] then
         table.insert(storage.trace_queue[player_index], { entity = entity })
     end

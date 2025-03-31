@@ -163,7 +163,7 @@ end
 local function draw_drop_positions_by_xy(x, y, surface_name, player_index, color)
     local surface = game.get_surface(surface_name)
     if not (surface and surface.valid) then return end
-    local max_inserter_reach_distance = game.max_inserter_reach_distance * 1.5
+    local max_inserter_reach_distance = prototypes.max_inserter_reach_distance * 1.5
 
     -- since x and y were already floored, put them back to the middle of a tile
     x = x + 0.5

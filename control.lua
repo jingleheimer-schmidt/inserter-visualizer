@@ -124,21 +124,21 @@ local function draw_drop_position(inserter, player_index, color)
             players = { player_index },
         }
     )
-    if not global.renderings then
-        global.renderings = {
+    if not storage.renderings then
+        storage.renderings = {
             [player_index] = {
                 player = player,
                 render_ids = {}
             }
         }
-    elseif not global.renderings[player_index] then
-        global.renderings[player_index] = {
+    elseif not storage.renderings[player_index] then
+        storage.renderings[player_index] = {
             player = player,
             render_ids = {}
         }
     end
-    table.insert(global.renderings[player_index].render_ids, render_circle)
-    table.insert(global.renderings[player_index].render_ids, render_line)
+    table.insert(storage.renderings[player_index].render_ids, render_circle)
+    table.insert(storage.renderings[player_index].render_ids, render_line)
 end
 
 --- get every xy position within a given BoundingBox
@@ -210,7 +210,6 @@ local function trace_belts(data, player_index, color)
     local unit_number = entity.unit_number --[[@as uint]]
     local belt_neighbours = entity.belt_neighbours
     local orientation = entity.orientation
-    local global_data = global
 
     -- draw any inserter drop positions
     if type == "splitter" then
@@ -223,10 +222,10 @@ local function trace_belts(data, player_index, color)
     end
 
     -- document that we already traced this belt
-    if not global_data.traced_belts then global_data.traced_belts = {} end
-    if not global_data.traced_belts[player_index] then global_data.traced_belts[player_index] = {} end
-    ---@type table<uint, boolean>
-    local traced_belts = global_data.traced_belts[player_index]
+    ---@type table<PlayerIndex, table<uint, boolean>>
+    storage.traced_belts = storage.traced_belts or {}
+    storage.traced_belts[player_index] = storage.traced_belts[player_index] or {}
+    local traced_belts = storage.traced_belts[player_index]
     if not traced_belts[unit_number] then traced_belts[unit_number] = true end
 
     -- add any connected belts to the queue
@@ -249,79 +248,75 @@ local function trace_belts(data, player_index, color)
             entity = neighbour_data.entity,
             from_type = opposite_type[neighbour_data.type]
         }
-        table.insert(global_data.trace_queue[player_index], trace_data)
+        table.insert(storage.trace_queue[player_index], trace_data)
     end
 
     -- add the other side of an underground to the queue
     if type == "underground-belt" and entity.neighbours then
         if traced_belts and traced_belts[entity.neighbours.unit_number] then return end
-        table.insert(global_data.trace_queue[player_index], { entity = entity.neighbours })
+        table.insert(storage.trace_queue[player_index], { entity = entity.neighbours })
     end
 end
 
 -- clear any renderings for the player
 ---@param player_index PlayerIndex
----@param global_data table?
-local function clear_renderings_for_player(player_index, global_data)
-    global_data = global_data or global
+local function clear_renderings_for_player(player_index)
     ---@type table<PlayerIndex, boolean>
-    if not global_data.destroy_renderings then global_data.destroy_renderings = {} end
-    if global_data.renderings and global_data.renderings[player_index] then
-        global_data.destroy_renderings[player_index] = true
+    storage.destroy_renderings = storage.destroy_renderings or {}
+    if storage.renderings and storage.renderings[player_index] then
+        storage.destroy_renderings[player_index] = true
     end
 end
 
 -- clear any queued belts from the tracer
 ---@param player_index PlayerIndex
----@param global_data table?
-local function clear_queue_for_player(player_index, global_data)
-    global_data = global_data or global
-    if global_data.trace_queue and global_data.trace_queue[player_index] then
-        global_data.trace_queue[player_index] = nil
+local function clear_queue_for_player(player_index)
+    if storage.trace_queue and storage.trace_queue[player_index] then
+        storage.trace_queue[player_index] = nil
     end
-    if global_data.traced_belts and global_data.traced_belts[player_index] then
-        global_data.traced_belts[player_index] = nil
+    if storage.traced_belts and storage.traced_belts[player_index] then
+        storage.traced_belts[player_index] = nil
     end
 end
 
 local function selected_entity_changed(event)
     local player_index = event.player_index
-    local global_data = global
-    if global_data.highlight_inserters and global_data.highlight_inserters[player_index] then return end
+    if storage.highlight_inserters and storage.highlight_inserters[player_index] then return end
     local player = game.get_player(player_index)
     if not player then return end
     local entity = player.selected
 
     -- clear any renderings for the player
     ::destroy_renderings::
-    if not (global_data.renderings and global_data.renderings[player_index]) then goto trace_queue end
-    clear_renderings_for_player(player_index, global_data)
+    if not (storage.renderings and storage.renderings[player_index]) then goto trace_queue end
+    clear_renderings_for_player(player_index)
 
     -- clear any queued belts from the tracer
     ::trace_queue::
-    clear_queue_for_player(player_index, global_data)
-    if not (global_data.selection_highlighting and global_data.selection_highlighting[player_index]) then return end
+    clear_queue_for_player(player_index)
+    if not (storage.selection_highlighting and storage.selection_highlighting[player_index]) then return end
 
     -- draw highlight if entity is an inserter, or add it to the trace queue if it's a belt
     ::highlight_entities::
-    if global_data.single_inserter_queue and global_data.single_inserter_queue[player_index] then
-        global_data.single_inserter_queue[player_index] = nil
+    if storage.single_inserter_queue and storage.single_inserter_queue[player_index] then
+        storage.single_inserter_queue[player_index] = nil
     end
     if not (entity and entity.type) then return end
     local type = entity.type
-    if not global_data.trace_queue then global_data.trace_queue = {} end
-    if not global_data.trace_queue[player_index] then global_data.trace_queue[player_index] = {} end
+    ---@type table<PlayerIndex, table<integer, TraceData>>
+    storage.trace_queue = storage.trace_queue or {}
+    storage.trace_queue[player_index] = storage.trace_queue[player_index] or {}
     if type == "inserter" then
         -- draw_drop_position(entity, player_index, color)
-        if not global_data.single_inserter_queue then
-            global_data.single_inserter_queue = {
+        if not storage.single_inserter_queue then
+            storage.single_inserter_queue = {
                 [player_index] = entity
             }
         else
-            global_data.single_inserter_queue[player_index] = entity
+            storage.single_inserter_queue[player_index] = entity
         end
     elseif belt_types[type] then
-        table.insert(global_data.trace_queue[player_index], { entity = entity })
+        table.insert(storage.trace_queue[player_index], { entity = entity })
     end
 end
 
@@ -331,23 +326,23 @@ local function toggle_traced_belt_visualizer(event)
     local player_index = event.player_index
     local player = game.get_player(player_index)
     if not player then return end
-    clear_renderings_for_player(player_index, global)
-    clear_queue_for_player(player_index, global)
-    global.from_key_inserter = nil
-    global.from_key_render = nil
+    clear_renderings_for_player(player_index)
+    clear_queue_for_player(player_index)
+    storage.from_key_inserter = nil
+    storage.from_key_render = nil
 
     ---@type table<PlayerIndex, boolean>
-    global.highlight_inserters = global.highlight_inserters or {}
+    storage.highlight_inserters = storage.highlight_inserters or {}
     local selected = player.selected
     if selected and selected.type and belt_types[selected.type] then
-        global.trace_queue = global.trace_queue or {}
-        global.trace_queue[player_index] = global.trace_queue[player_index] or {}
-        table.insert(global.trace_queue[player_index], { entity = player.selected })
-        global.highlight_inserters[player_index] = true -- so when you toggle while selecting a belt type entity, the highlight is persistent once you select something else
+        storage.trace_queue = storage.trace_queue or {}
+        storage.trace_queue[player_index] = storage.trace_queue[player_index] or {}
+        table.insert(storage.trace_queue[player_index], { entity = player.selected })
+        storage.highlight_inserters[player_index] = true -- so when you toggle while selecting a belt type entity, the highlight is persistent once you select something else
     else
-        global.highlight_inserters[player_index] = false
-        if not global.inserter_queue then return end
-        global.inserter_queue[player_index] = nil
+        storage.highlight_inserters[player_index] = false
+        if not storage.inserter_queue then return end
+        storage.inserter_queue[player_index] = nil
     end
 end
 
@@ -358,34 +353,34 @@ local function toggle_global_inserter_visualizer(event)
     local player = game.get_player(player_index)
     if not player then return end
     local selected_entity = player.selected
-    global.highlight_inserters = global.highlight_inserters or {} ---@type table<PlayerIndex, boolean>
-    global.inserter_queue = global.inserter_queue or {} ---@type table<PlayerIndex, boolean>
-    global.single_inserter_queue = global.single_inserter_queue or {} ---@type table<PlayerIndex, LuaEntity>
-    global.player_inserters = global.player_inserters or {} ---@type table<PlayerIndex, LuaEntity[]>
+    storage.highlight_inserters = storage.highlight_inserters or {} ---@type table<PlayerIndex, boolean>
+    storage.inserter_queue = storage.inserter_queue or {} ---@type table<PlayerIndex, boolean>
+    storage.single_inserter_queue = storage.single_inserter_queue or {} ---@type table<PlayerIndex, LuaEntity>
+    storage.player_inserters = storage.player_inserters or {} ---@type table<PlayerIndex, LuaEntity[]>
     -- clear the single_inserter_queue of any previously highlightelobal.single_inserter_queue[player_index] = nil
     -- if player selected a belt, start up the belt tracer
     if player and selected_entity and belt_types[selected_entity.type] then
         toggle_traced_belt_visualizer({ player_index = player_index })
         -- otherwise add the selected inserter to the single_inserter_queue
     elseif player and selected_entity and selected_entity.type == "inserter" then
-        global.single_inserter_queue[player_index] = selected_entity
-        global.highlight_inserters[player_index] = true -- so when you toggle while selecting an inserter, the highlight is persistent once you select something else
+        storage.single_inserter_queue[player_index] = selected_entity
+        storage.highlight_inserters[player_index] = true -- so when you toggle while selecting an inserter, the highlight is persistent once you select something else
         -- or if something else / nothing is selected, toggle highlighting all inserters
     else
-        if not global.highlight_inserters[player_index] then
-            global.highlight_inserters[player_index] = true
-            global.inserter_queue[player_index] = true
-            global.player_inserters[player_index] = player.surface.find_entities_filtered({ type = "inserter" })
+        if not storage.highlight_inserters[player_index] then
+            storage.highlight_inserters[player_index] = true
+            storage.inserter_queue[player_index] = true
+            storage.player_inserters[player_index] = player.surface.find_entities_filtered({ type = "inserter" })
             -- table.sort(global.player_inserters[player_index], function(a, b) return a.unit_number < b.unit_number end)
         else
-            global.highlight_inserters[player_index] = false
-            global.inserter_queue[player_index] = nil
-            global.player_inserters[player_index] = nil
+            storage.highlight_inserters[player_index] = false
+            storage.inserter_queue[player_index] = nil
+            storage.player_inserters[player_index] = nil
         end
-        clear_renderings_for_player(player_index, global)
-        clear_queue_for_player(player_index, global)
-        global.from_key_inserter = nil
-        global.from_key_render = nil
+        clear_renderings_for_player(player_index)
+        clear_queue_for_player(player_index)
+        storage.from_key_inserter = nil
+        storage.from_key_render = nil
     end
 end
 
@@ -395,9 +390,9 @@ local function toggle_selection_highlighting(event)
     local name = event.prototype_name or event.input_name
     if name ~= "toggle-selection-highlighting-shortcut" then return end
     local player_index = event.player_index
-    if not global.selection_highlighting then global.selection_highlighting = {} end
-    global.selection_highlighting[player_index] = not global.selection_highlighting[player_index]
-    game.get_player(player_index).set_shortcut_toggled("toggle-selection-highlighting-shortcut", global.selection_highlighting[player_index])
+    if not storage.selection_highlighting then storage.selection_highlighting = {} end
+    storage.selection_highlighting[player_index] = not storage.selection_highlighting[player_index]
+    game.get_player(player_index).set_shortcut_toggled("toggle-selection-highlighting-shortcut", storage.selection_highlighting[player_index])
 end
 
 -- a "factory function" so that the player_index upval can be passed through during for_n_of.
@@ -472,25 +467,24 @@ end
 
 -- the core, the main mod loop, this is where it all happens :)
 local function on_tick()
-    local global_data = global
-    local belt_queue = global_data.trace_queue ---@type table<PlayerIndex, table<integer, TraceData>>
-    local inserter_queue = global_data.inserter_queue ---@type table<PlayerIndex, boolean>
-    local destroy_renderings = global_data.destroy_renderings ---@type table<PlayerIndex, boolean>
-    local single_inserter_queue = global_data.single_inserter_queue ---@type table<PlayerIndex, LuaEntity>
-    if not global_data.from_key_inserter then global_data.from_key_inserter = {} end
-    if not global_data.from_key_render then global_data.from_key_render = {} end
-    if not global_data.message then global_data.message = {} end
+    local belt_queue = storage.trace_queue ---@type table<PlayerIndex, table<integer, TraceData>>
+    local inserter_queue = storage.inserter_queue ---@type table<PlayerIndex, boolean>
+    local destroy_renderings = storage.destroy_renderings ---@type table<PlayerIndex, boolean>
+    local single_inserter_queue = storage.single_inserter_queue ---@type table<PlayerIndex, LuaEntity>
+    if not storage.from_key_inserter then storage.from_key_inserter = {} end
+    if not storage.from_key_render then storage.from_key_render = {} end
+    if not storage.message then storage.message = {} end
     ::single_inserter::
     if not single_inserter_queue or not next(single_inserter_queue) then goto belt_queue end
     for player_index, inserter in pairs(single_inserter_queue) do
-        if global_data.destroy_renderings and global_data.destroy_renderings[player_index] then break end
+        if storage.destroy_renderings and storage.destroy_renderings[player_index] then break end
         local highlight_color = settings.get_player_settings(player_index)["highlight_color"].value --[[@as Color]]
         draw_drop_position(inserter, player_index, highlight_color)
     end
     ::belt_queue::
     if not belt_queue or not next(belt_queue) then goto inserter_queue end
     for player_index, belts in pairs(belt_queue) do
-        if global_data.destroy_renderings and global_data.destroy_renderings[player_index] then break end
+        if storage.destroy_renderings and storage.destroy_renderings[player_index] then break end
         local player_settings = settings.get_player_settings(player_index)
         local max_belts_traced_per_tick = player_settings["highlights_per_tick"].value
         local highlight_color = player_settings["highlight_color"].value --[[@as Color]]
@@ -510,11 +504,11 @@ local function on_tick()
     for player_index, bool in pairs(inserter_queue) do
         if not bool then break end
         -- don't start rendering until all the current ones are destroyed
-        if global_data.destroy_renderings and global_data.destroy_renderings[player_index] then break end
-        local player_inserters = global_data.player_inserters and global_data.player_inserters[player_index]
+        if storage.destroy_renderings and storage.destroy_renderings[player_index] then break end
+        local player_inserters = storage.player_inserters and storage.player_inserters[player_index]
         if not player_inserters then
-            global.highlight_inserters[player_index] = false
-            global.inserter_queue[player_index] = nil
+            storage.highlight_inserters[player_index] = false
+            storage.inserter_queue[player_index] = nil
             goto render_destruction
         end
         local player_settings = settings.get_player_settings(player_index)
@@ -522,19 +516,19 @@ local function on_tick()
         local highlight_color = player_settings["highlight_color"].value --[[@as Color]]
         local results, reached_end = nil, nil
         local reset_count = false
-        if not global_data.from_key_inserter[player_index] then reset_count = true end
-        global_data.from_key_inserter[player_index], results, reached_end = table.for_n_of(
+        if not storage.from_key_inserter[player_index] then reset_count = true end
+        storage.from_key_inserter[player_index], results, reached_end = table.for_n_of(
             player_inserters,
-            global_data.from_key_inserter[player_index],
+            storage.from_key_inserter[player_index],
             max_highlights_per_tick,
             draw_drop_positions_partial(player_index, highlight_color)
         )
-        update_highlight_message(player_index, { "status-message.highlighting-inserters" }, global_data, max_highlights_per_tick, player_inserters, reset_count)
+        update_highlight_message(player_index, { "status-message.highlighting-inserters" }, storage, max_highlights_per_tick, player_inserters, reset_count)
         if reached_end then
             inserter_queue[player_index] = false
-            global_data.from_key_inserter[player_index] = nil
-            rendering.destroy(global_data.message[player_index].render_id)
-            global_data.message[player_index] = nil
+            storage.from_key_inserter[player_index] = nil
+            rendering.destroy(storage.message[player_index].render_id)
+            storage.message[player_index] = nil
         end
     end
     ::render_destruction::
@@ -546,26 +540,26 @@ local function on_tick()
         local max_renderings_destroyed_per_tick = player_settings["highlights_per_tick"].value * 10 * 5
         local results, reached_end = nil, nil
         local reset_count = false
-        if not global_data.from_key_render[player_index] then reset_count = true end
-        global_data.from_key_render[player_index], results, reached_end = table.for_n_of(
-            global_data.renderings[player_index].render_ids,
-            global_data.from_key_render[player_index],
+        if not storage.from_key_render[player_index] then reset_count = true end
+        storage.from_key_render[player_index], results, reached_end = table.for_n_of(
+            storage.renderings[player_index].render_ids,
+            storage.from_key_render[player_index],
             max_renderings_destroyed_per_tick,
             destroy_renderings_partial
         )
-        update_highlight_message(player_index, { "status-message.removing-highlights" }, global_data, max_renderings_destroyed_per_tick, global_data.renderings[player_index].render_ids, reset_count)
+        update_highlight_message(player_index, { "status-message.removing-highlights" }, storage, max_renderings_destroyed_per_tick, storage.renderings[player_index].render_ids, reset_count)
         if reached_end then
-            global_data.renderings[player_index].render_ids = {}
+            storage.renderings[player_index].render_ids = {}
             destroy_renderings[player_index] = false
-            global_data.from_key_render[player_index] = nil
-            rendering.destroy(global_data.message[player_index].render_id)
-            global_data.message[player_index] = nil
+            storage.from_key_render[player_index] = nil
+            rendering.destroy(storage.message[player_index].render_id)
+            storage.message[player_index] = nil
         end
     end
 end
 
 local function on_configuration_changed()
-    global = {}
+    storage = {}
     rendering.clear("inserter-visualizer")
 end
 

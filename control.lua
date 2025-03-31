@@ -302,15 +302,15 @@ local function selected_entity_changed(event)
         storage.single_inserter_queue[player_index] = nil
     end
     if not (entity and entity.type) then return end
-    local type = entity.type
-    ---@type table<PlayerIndex, table<integer, TraceData>>
-    storage.trace_queue = storage.trace_queue or {}
-    storage.trace_queue[player_index] = storage.trace_queue[player_index] or {}
-    if type == "inserter" then
-        -- draw_drop_position(entity, player_index, color)
+    local entity_type = entity.type
+    if entity_type == "inserter" then
+        ---@type table<PlayerIndex, LuaEntity>
         storage.single_inserter_queue = storage.single_inserter_queue or {}
         storage.single_inserter_queue[player_index] = entity
-    elseif belt_types[type] then
+    elseif belt_types[entity_type] then
+        ---@type table<PlayerIndex, table<integer, TraceData>>
+        storage.trace_queue = storage.trace_queue or {}
+        storage.trace_queue[player_index] = storage.trace_queue[player_index] or {}
         table.insert(storage.trace_queue[player_index], { entity = entity })
     end
 end
